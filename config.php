@@ -45,6 +45,16 @@ function envValue(string $key, ?string $default = null): string
     return $value;
 }
 
+function envBool(string $key, bool $default = false): bool
+{
+    $value = getenv($key);
+    if ($value === false || $value === '') {
+        return $default;
+    }
+
+    return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+}
+
 function logFilePath(string $unit, string $timezone): string
 {
     $now = new DateTimeImmutable('now', new DateTimeZone($timezone));
@@ -61,6 +71,11 @@ loadEnvFile(__DIR__ . '/.env');
 
 $timezone = envValue('TIMEZONE', 'Asia/Ho_Chi_Minh');
 $logOutputUnit = strtolower(envValue('LOG_OUTPUT_UNIT', 'daily'));
+$slackNotificationEnabled = envBool('SLACK_NOTIFICATION_ENABLED', false);
+$slackWebhookUrl = envValue('SLACK_WEBHOOK_URL', '');
+if ($slackNotificationEnabled && $slackWebhookUrl === '') {
+    throw new RuntimeException('SLACK_NOTIFICATION_ENABLED=true の場合は SLACK_WEBHOOK_URL を設定してください');
+}
 
 return [
     'notion_api_key' => envValue('NOTION_API_KEY'),
@@ -75,4 +90,6 @@ return [
     'gmail_token_path' => envValue('GMAIL_TOKEN_PATH', __DIR__ . '/credentials/gmail_token.json'),
     'log_output_unit' => $logOutputUnit,
     'log_file_path' => logFilePath($logOutputUnit, $timezone),
+    'slack_notification_enabled' => $slackNotificationEnabled,
+    'slack_webhook_url' => $slackWebhookUrl,
 ];

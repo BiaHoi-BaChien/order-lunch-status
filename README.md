@@ -54,6 +54,17 @@ LOG_OUTPUT_UNIT=single   # logs/lunch_batch.log
 
 処理件数、スキップ件数、エラー件数、各エラー詳細を記録します。
 
+## Slack通知
+
+処理結果をSlack Incoming Webhookに通知できます。既定では無効です。
+
+```env
+SLACK_NOTIFICATION_ENABLED=false
+SLACK_WEBHOOK_URL=
+```
+
+通知する場合は `SLACK_NOTIFICATION_ENABLED=true` に変更し、`SLACK_WEBHOOK_URL` にIncoming Webhook URLを設定してください。
+
 ## cron例
 
 ```cron

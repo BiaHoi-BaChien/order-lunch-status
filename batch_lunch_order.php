@@ -7,6 +7,7 @@ require_once __DIR__ . '/src/GmailClient.php';
 require_once __DIR__ . '/src/NotionClient.php';
 require_once __DIR__ . '/src/MailParser.php';
 require_once __DIR__ . '/src/LunchOrderService.php';
+require_once __DIR__ . '/src/SlackNotifier.php';
 
 $logger = null;
 
@@ -35,6 +36,14 @@ try {
     $summary = $service->run();
 
     $logger->info('処理結果: ' . json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    if ($config['slack_notification_enabled']) {
+        try {
+            (new SlackNotifier($config['slack_webhook_url'], $config['timezone']))->notifyResult($summary);
+            $logger->info('Slack通知成功');
+        } catch (Throwable $e) {
+            $logger->error('Slack通知失敗: ' . $e->getMessage());
+        }
+    }
     $logger->info('処理終了日時: ' . (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM));
 
     exit($summary['errors'] > 0 ? 1 : 0);
