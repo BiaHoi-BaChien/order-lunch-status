@@ -55,6 +55,22 @@ function envBool(string $key, bool $default = false): bool
     return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
 }
 
+function isAbsolutePath(string $path): bool
+{
+    return str_starts_with($path, '/')
+        || str_starts_with($path, '\\')
+        || preg_match('/^[A-Za-z]:[\/\\\\]/', $path) === 1;
+}
+
+function projectPath(string $path): string
+{
+    if (isAbsolutePath($path)) {
+        return $path;
+    }
+
+    return __DIR__ . '/' . ltrim($path, '/\\');
+}
+
 function logFilePath(string $unit, string $timezone): string
 {
     $now = new DateTimeImmutable('now', new DateTimeZone($timezone));
@@ -86,8 +102,8 @@ return [
     'lookback_days' => (int) envValue('LOOKBACK_DAYS', '7'),
     'initial_record_days' => (int) envValue('INITIAL_RECORD_DAYS', '30'),
     'shop_name' => envValue('SHOP_NAME', '松屋'),
-    'gmail_credentials_path' => envValue('GMAIL_CREDENTIALS_PATH', __DIR__ . '/credentials/gmail_credentials.json'),
-    'gmail_token_path' => envValue('GMAIL_TOKEN_PATH', __DIR__ . '/credentials/gmail_token.json'),
+    'gmail_credentials_path' => projectPath(envValue('GMAIL_CREDENTIALS_PATH', 'credentials/gmail_credentials.json')),
+    'gmail_token_path' => projectPath(envValue('GMAIL_TOKEN_PATH', 'credentials/gmail_token.json')),
     'log_output_unit' => $logOutputUnit,
     'log_file_path' => logFilePath($logOutputUnit, $timezone),
     'slack_notification_enabled' => $slackNotificationEnabled,
