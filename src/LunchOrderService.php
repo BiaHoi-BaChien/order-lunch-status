@@ -1,0 +1,198 @@
+<?php
+
+declare(strict_types=1);
+
+final class LunchOrderService
+{
+    private const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+    public function __construct(
+        private readonly GmailClient $gmail,
+        private readonly NotionClient $notion,
+        private readonly MailParser $parser,
+        private readonly Logger $logger,
+        private readonly array $config
+    ) {
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function run(): array
+    {
+        $summary = [
+            'initial_created' => 0,
+            'order_confirmation_found' => 0,
+            'order_confirmation_success' => 0,
+            'order_confirmation_skipped' => 0,
+            'receipt_found' => 0,
+            'receipt_success' => 0,
+            'receipt_skipped' => 0,
+            'errors' => 0,
+        ];
+
+        $summary['initial_created'] = $this->ensureInitialRecords();
+
+        $orderMessages = $this->gmail->searchMessages(sprintf(
+            'from:forms-receipts-noreply@google.com subject:"フォームにご記入いただきありがとうございます" newer_than:%dd',
+            (int) $this->config['lookback_days']
+        ));
+        $summary['order_confirmation_found'] = count($orderMessages);
+        $this->logger->info('注文確認メール検索件数: ' . count($orderMessages));
+
+        foreach ($orderMessages as $messageRef) {
+            try {
+                $result = $this->processOrderConfirmation($messageRef['id']);
+                $summary[$result === 'success' ? 'order_confirmation_success' : 'order_confirmation_skipped']++;
+            } catch (Throwable $e) {
+                $summary['errors']++;
+                $this->logger->error("注文確認メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}");
+            }
+        }
+
+        $receiptMessages = $this->gmail->searchMessages(sprintf(
+            'from:an.phamnguyennhat@matsuyafoods.com.vn subject:"【松屋】お弁当注文受付確認" newer_than:%dd',
+            (int) $this->config['lookback_days']
+        ));
+        $summary['receipt_found'] = count($receiptMessages);
+        $this->logger->info('注文受付メール検索件数: ' . count($receiptMessages));
+
+        foreach ($receiptMessages as $messageRef) {
+            try {
+                $result = $this->processReceipt($messageRef['id']);
+                $summary[$result === 'success' ? 'receipt_success' : 'receipt_skipped']++;
+            } catch (Throwable $e) {
+                $summary['errors']++;
+                $this->logger->error("注文受付メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}");
+            }
+        }
+
+        $this->logger->info('初期レコード作成件数: ' . $summary['initial_created']);
+        $this->logger->info('注文確認メール処理成功件数: ' . $summary['order_confirmation_success']);
+        $this->logger->info('注文確認メールスキップ件数: ' . $summary['order_confirmation_skipped']);
+        $this->logger->info('注文受付メール処理成功件数: ' . $summary['receipt_success']);
+        $this->logger->info('注文受付メールスキップ件数: ' . $summary['receipt_skipped']);
+        $this->logger->info('エラー件数: ' . $summary['errors']);
+
+        return $summary;
+    }
+
+    private function ensureInitialRecords(): int
+    {
+        $created = 0;
+        $today = new DateTimeImmutable('today');
+        $days = (int) $this->config['initial_record_days'];
+
+        for ($i = 0; $i <= $days; $i++) {
+            $date = $today->modify("+{$i} days");
+            $dateText = $date->format('Y-m-d');
+            if ($this->notion->findOrderByDate($dateText) !== null) {
+                continue;
+            }
+
+            $weekday = $this->weekday($date);
+            $status = in_array($weekday, ['土', '日'], true) ? '利用しない' : '未注文';
+            $this->notion->createInitialOrder($dateText, $weekday, $status);
+            $created++;
+            $this->logger->info("初期レコード作成: date={$dateText}, weekday={$weekday}, status={$status}");
+        }
+
+        return $created;
+    }
+
+    private function processOrderConfirmation(string $messageId): string
+    {
+        $message = $this->gmail->getMessage($messageId);
+        $order = $this->parser->parseOrderConfirmation($message);
+        if ($order['warn_previous_year']) {
+            $this->logger->warn("注文確認メールの日付が前年の可能性があります: date={$order['date']}, message_id={$messageId}");
+        }
+        $url = $this->gmail->messageUrl($messageId);
+
+        $page = $this->notion->findOrderByDate($order['date']);
+        if ($page === null) {
+            throw new RuntimeException("更新対象の日付レコードがありません: date={$order['date']}");
+        }
+
+        $status = $this->selectName($page, '状況');
+        if (in_array($status, ['注文済', '受付済'], true)) {
+            $this->logger->info("既に処理済みのためスキップ: date={$order['date']}, status={$status}");
+            return 'skipped';
+        }
+        if (!in_array($status, ['利用しない', '未注文', null], true)) {
+            $this->logger->warn("想定外の状況を更新します: date={$order['date']}, current_status={$status}");
+        }
+
+        $ticket = $this->notion->findTicketByNumber($order['ticket_no']);
+        if ($ticket === null || empty($ticket['id'])) {
+            throw new RuntimeException("チケット未登録: ticket_no={$order['ticket_no']}, order_date={$order['date']}");
+        }
+
+        $date = new DateTimeImmutable($order['date']);
+        $this->notion->updateOrder((string) $page['id'], [
+            '品名' => ['title' => [['text' => ['content' => $order['item_name']]]]],
+            '日付' => ['date' => ['start' => $order['date']]],
+            '曜日' => ['select' => ['name' => $this->weekday($date)]],
+            '状況' => ['select' => ['name' => '注文済']],
+            'サイズ' => ['select' => ['name' => $order['size']]],
+            'お店' => ['select' => ['name' => $this->config['shop_name']]],
+            '備考' => ['rich_text' => $order['note'] === '' ? [] : [['text' => ['content' => $order['note']]]]],
+            '注文確認メール' => ['url' => $url],
+            'お弁当チケット' => ['relation' => [['id' => (string) $ticket['id']]]],
+        ]);
+
+        $this->logger->info("注文確認メール処理成功: date={$order['date']}, ticket_no={$order['ticket_no']}, message_id={$messageId}");
+
+        return 'success';
+    }
+
+    private function processReceipt(string $messageId): string
+    {
+        $message = $this->gmail->getMessage($messageId);
+        $receipt = $this->parser->parseReceipt($message);
+        if ($receipt['warn_previous_year']) {
+            $this->logger->warn("受付メールの日付が前年の可能性があります: date={$receipt['date']}, message_id={$messageId}");
+        }
+
+        $page = $this->notion->findOrderByDate($receipt['date']);
+        if ($page === null) {
+            throw new RuntimeException("受付メールに対応する注文レコードなし: date={$receipt['date']}");
+        }
+
+        $url = $this->gmail->messageUrl($messageId);
+        $currentUrl = $this->urlValue($page, '受付確認メール');
+        if ($currentUrl === $url && $this->selectName($page, '状況') === '受付済') {
+            $this->logger->info("受付確認メールは既に処理済みのためスキップ: date={$receipt['date']}, message_id={$messageId}");
+            return 'skipped';
+        }
+
+        $status = $this->selectName($page, '状況');
+        if (in_array($status, ['未注文', '利用しない'], true)) {
+            $this->logger->warn("注文済でないレコードを受付済に更新: date={$receipt['date']}, current_status={$status}");
+        }
+
+        $this->notion->updateOrder((string) $page['id'], [
+            '状況' => ['select' => ['name' => '受付済']],
+            '受付確認メール' => ['url' => $url],
+        ]);
+
+        $this->logger->info("注文受付メール処理成功: date={$receipt['date']}, message_id={$messageId}");
+
+        return 'success';
+    }
+
+    private function weekday(DateTimeImmutable $date): string
+    {
+        return self::WEEKDAYS[(int) $date->format('w')];
+    }
+
+    private function selectName(array $page, string $property): ?string
+    {
+        return $page['properties'][$property]['select']['name'] ?? null;
+    }
+
+    private function urlValue(array $page, string $property): ?string
+    {
+        return $page['properties'][$property]['url'] ?? null;
+    }
+}
