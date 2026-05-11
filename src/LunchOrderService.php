@@ -51,7 +51,7 @@ final class LunchOrderService
         }
 
         $receiptMessages = $this->gmail->searchMessages(sprintf(
-            'from:an.phamnguyennhat@matsuyafoods.com.vn subject:"【松屋】お弁当注文受付確認" newer_than:%dd',
+            'subject:"【松屋】お弁当注文受付確認" newer_than:%dd',
             (int) $this->config['lookback_days']
         ));
         $summary['receipt_found'] = count($receiptMessages);
