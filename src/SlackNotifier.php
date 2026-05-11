@@ -11,7 +11,7 @@ final class SlackNotifier
     }
 
     /**
-     * @param array<string, int> $summary
+     * @param array<string, mixed> $summary
      */
     public function notifyResult(array $summary): void
     {
@@ -45,14 +45,14 @@ final class SlackNotifier
     }
 
     /**
-     * @param array<string, int> $summary
+     * @param array<string, mixed> $summary
      */
     private function buildMessage(array $summary): string
     {
         $status = ($summary['errors'] ?? 0) > 0 ? 'エラーあり' : '正常終了';
         $finishedAt = (new DateTimeImmutable('now', new DateTimeZone($this->timezone)))->format('Y-m-d H:i:s');
 
-        return implode("\n", [
+        $lines = [
             "お弁当注文状況バッチ 処理結果: {$status}",
             "終了日時: {$finishedAt}",
             "初期レコード作成: " . ($summary['initial_created'] ?? 0),
@@ -63,7 +63,47 @@ final class SlackNotifier
                 . " / 成功 " . ($summary['receipt_success'] ?? 0)
                 . " / スキップ " . ($summary['receipt_skipped'] ?? 0),
             "エラー: " . ($summary['errors'] ?? 0),
-        ]);
+        ];
+
+        if (!empty($summary['recent_orders']) && is_array($summary['recent_orders'])) {
+            $lines[] = '直近の注文状況:';
+            foreach ($summary['recent_orders'] as $order) {
+                if (is_array($order)) {
+                    $lines[] = $this->formatRecentOrder($order);
+                }
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, string> $order
+     */
+    private function formatRecentOrder(array $order): string
+    {
+        $date = DateTimeImmutable::createFromFormat('Y-m-d', $order['date'] ?? '');
+        $dateText = $date instanceof DateTimeImmutable
+            ? $date->format('Y/m/d')
+            : ($order['date'] ?? '');
+        $weekday = $order['weekday'] ?? '';
+        $status = $order['status'] ?? '未設定';
+        $parts = [
+            "{$dateText}({$weekday})",
+            "[{$status}]",
+        ];
+
+        if (($order['item_name'] ?? '') !== '') {
+            $parts[] = $order['item_name'];
+        }
+        if (($order['size'] ?? '') !== '') {
+            $parts[] = '[' . $order['size'] . ']';
+        }
+        if (($order['note'] ?? '') !== '') {
+            $parts[] = $order['note'];
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

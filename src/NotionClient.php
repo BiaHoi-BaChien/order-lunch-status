@@ -25,6 +25,25 @@ final class NotionClient
         return $result[0] ?? null;
     }
 
+    public function findOrdersByDateRange(string $startDate, string $endDate): array
+    {
+        return $this->queryDataSource(
+            $this->orderDataSourceId,
+            [
+                'and' => [
+                    ['property' => '日付', 'date' => ['on_or_after' => $startDate]],
+                    ['property' => '日付', 'date' => ['before' => $endDate]],
+                ],
+            ],
+            [
+                [
+                    'property' => '日付',
+                    'direction' => 'ascending',
+                ],
+            ]
+        );
+    }
+
     public function createInitialOrder(string $date, string $weekday, string $status): array
     {
         return $this->request('POST', '/pages', [
@@ -53,13 +72,16 @@ final class NotionClient
         return $this->request('PATCH', '/pages/' . rawurlencode($pageId), ['properties' => $properties]);
     }
 
-    private function queryDataSource(string $dataSourceId, array $filter): array
+    private function queryDataSource(string $dataSourceId, array $filter, array $sorts = []): array
     {
         $pages = [];
         $startCursor = null;
 
         do {
             $payload = ['filter' => $filter, 'page_size' => 100];
+            if ($sorts !== []) {
+                $payload['sorts'] = $sorts;
+            }
             if ($startCursor !== null) {
                 $payload['start_cursor'] = $startCursor;
             }

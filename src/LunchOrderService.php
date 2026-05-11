@@ -16,7 +16,7 @@ final class LunchOrderService
     }
 
     /**
-     * @return array<string, int>
+     * @return array<string, mixed>
      */
     public function run(): array
     {
@@ -73,6 +73,7 @@ final class LunchOrderService
         $this->logger->info('注文受付メール処理成功件数: ' . $summary['receipt_success']);
         $this->logger->info('注文受付メールスキップ件数: ' . $summary['receipt_skipped']);
         $this->logger->info('エラー件数: ' . $summary['errors']);
+        $summary['recent_orders'] = $this->recentOrders(5);
 
         return $summary;
     }
@@ -181,6 +182,40 @@ final class LunchOrderService
         return 'success';
     }
 
+    /**
+     * @return list<array{date:string,weekday:string,status:string,item_name:string,size:string,note:string}>
+     */
+    private function recentOrders(int $days): array
+    {
+        $today = new DateTimeImmutable('today');
+        $endDate = $today->modify("+{$days} days")->format('Y-m-d');
+        $pages = $this->notion->findOrdersByDateRange($today->format('Y-m-d'), $endDate);
+        $pagesByDate = [];
+        foreach ($pages as $page) {
+            $date = $this->dateValue($page, '日付');
+            if ($date !== null) {
+                $pagesByDate[$date] = $page;
+            }
+        }
+
+        $orders = [];
+        for ($i = 0; $i < $days; $i++) {
+            $date = $today->modify("+{$i} days");
+            $dateText = $date->format('Y-m-d');
+            $page = $pagesByDate[$dateText] ?? null;
+            $orders[] = [
+                'date' => $dateText,
+                'weekday' => $this->weekday($date),
+                'status' => is_array($page) ? ($this->selectName($page, '状況') ?? '未設定') : '未登録',
+                'item_name' => is_array($page) ? $this->titleValue($page, '品名') : '',
+                'size' => is_array($page) ? ($this->selectName($page, 'サイズ') ?? '') : '',
+                'note' => is_array($page) ? $this->richTextValue($page, '備考') : '',
+            ];
+        }
+
+        return $orders;
+    }
+
     private function weekday(DateTimeImmutable $date): string
     {
         return self::WEEKDAYS[(int) $date->format('w')];
@@ -189,6 +224,36 @@ final class LunchOrderService
     private function selectName(array $page, string $property): ?string
     {
         return $page['properties'][$property]['select']['name'] ?? null;
+    }
+
+    private function dateValue(array $page, string $property): ?string
+    {
+        $value = $page['properties'][$property]['date']['start'] ?? null;
+        if (!is_string($value)) {
+            return null;
+        }
+
+        return substr($value, 0, 10);
+    }
+
+    private function titleValue(array $page, string $property): string
+    {
+        $value = '';
+        foreach (($page['properties'][$property]['title'] ?? []) as $text) {
+            $value .= $text['plain_text'] ?? $text['text']['content'] ?? '';
+        }
+
+        return $value;
+    }
+
+    private function richTextValue(array $page, string $property): string
+    {
+        $value = '';
+        foreach (($page['properties'][$property]['rich_text'] ?? []) as $text) {
+            $value .= $text['plain_text'] ?? $text['text']['content'] ?? '';
+        }
+
+        return $value;
     }
 
     private function urlValue(array $page, string $property): ?string
