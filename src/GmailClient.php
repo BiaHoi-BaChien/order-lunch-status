@@ -75,7 +75,7 @@ final class GmailClient
         }
 
         if ($response['status'] < 200 || $response['status'] >= 300) {
-            throw new RuntimeException('Gmail APIエラー: status=' . $response['status'] . ', body=' . $response['body']);
+            throw new RuntimeException('Gmail APIエラー: status=' . $response['status'] . ', error=' . $this->apiErrorSummary($response['body']));
         }
 
         $decoded = json_decode($response['body'], true);
@@ -133,7 +133,8 @@ final class GmailClient
         curl_close($ch);
 
         if ($body === false || $status < 200 || $status >= 300) {
-            throw new RuntimeException("Gmail API認証失敗: status={$status}, error={$error}, body={$body}");
+            $summary = $body === false ? $error : $this->apiErrorSummary((string) $body);
+            throw new RuntimeException("Gmail API認証失敗: status={$status}, error={$summary}");
         }
 
         $decoded = json_decode((string) $body, true);
@@ -143,7 +144,7 @@ final class GmailClient
 
         $token['access_token'] = $decoded['access_token'];
         $token['expires_at'] = time() + (int) ($decoded['expires_in'] ?? 3600);
-        file_put_contents($this->tokenPath, json_encode($token, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        $this->writeJsonFile($this->tokenPath, $token);
 
         $this->logger->info('Gmail access_tokenを更新しました');
 
@@ -172,6 +173,23 @@ final class GmailClient
     }
 
     /**
+     * @param array<string, mixed> $data
+     */
+    private function writeJsonFile(string $path, array $data): void
+    {
+        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new RuntimeException("JSONファイルを生成できません: {$path}");
+        }
+
+        if (file_put_contents($path, $json . PHP_EOL, LOCK_EX) === false) {
+            throw new RuntimeException("JSONファイルを書き込めません: {$path}");
+        }
+
+        @chmod($path, 0600);
+    }
+
+    /**
      * @return array{status:int,body:string}
      */
     private function curlJson(string $method, string $url, array $headers, ?array $payload): array
@@ -196,5 +214,35 @@ final class GmailClient
         }
 
         return ['status' => (int) $status, 'body' => (string) $body];
+    }
+
+    private function apiErrorSummary(string $body): string
+    {
+        $decoded = json_decode($body, true);
+        if (is_array($decoded)) {
+            $error = $decoded['error'] ?? null;
+            if (is_array($error)) {
+                return $this->truncateErrorSummary(implode(' / ', array_filter([
+                    $error['status'] ?? null,
+                    $error['reason'] ?? null,
+                    $error['message'] ?? null,
+                ], static fn ($value): bool => is_scalar($value) && (string) $value !== '')));
+            }
+            if (is_scalar($error) && (string) $error !== '') {
+                return $this->truncateErrorSummary((string) $error);
+            }
+        }
+
+        return 'レスポンス本文はログ出力しません';
+    }
+
+    private function truncateErrorSummary(string $summary): string
+    {
+        $summary = trim(preg_replace('/\s+/u', ' ', $summary) ?? $summary);
+        if ($summary === '') {
+            return '詳細なし';
+        }
+
+        return mb_strlen($summary, 'UTF-8') > 200 ? mb_substr($summary, 0, 200, 'UTF-8') . '...' : $summary;
     }
 }

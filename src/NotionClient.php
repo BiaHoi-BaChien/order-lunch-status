@@ -121,7 +121,7 @@ final class NotionClient
             throw new RuntimeException("Notion API通信失敗: {$error}");
         }
         if ($status < 200 || $status >= 300) {
-            throw new RuntimeException("Notion APIエラー: status={$status}, body={$body}");
+            throw new RuntimeException("Notion APIエラー: status={$status}, error={$this->apiErrorSummary((string) $body)}");
         }
 
         $decoded = json_decode((string) $body, true);
@@ -130,5 +130,29 @@ final class NotionClient
         }
 
         return $decoded;
+    }
+
+    private function apiErrorSummary(string $body): string
+    {
+        $decoded = json_decode($body, true);
+        if (is_array($decoded)) {
+            return $this->truncateErrorSummary(implode(' / ', array_filter([
+                $decoded['code'] ?? null,
+                $decoded['status'] ?? null,
+                $decoded['message'] ?? null,
+            ], static fn ($value): bool => is_scalar($value) && (string) $value !== '')));
+        }
+
+        return 'レスポンス本文はログ出力しません';
+    }
+
+    private function truncateErrorSummary(string $summary): string
+    {
+        $summary = trim(preg_replace('/\s+/u', ' ', $summary) ?? $summary);
+        if ($summary === '') {
+            return '詳細なし';
+        }
+
+        return mb_strlen($summary, 'UTF-8') > 200 ? mb_substr($summary, 0, 200, 'UTF-8') . '...' : $summary;
     }
 }
