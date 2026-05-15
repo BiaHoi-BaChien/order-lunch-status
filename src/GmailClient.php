@@ -144,7 +144,14 @@ final class GmailClient
 
         $token['access_token'] = $decoded['access_token'];
         $token['expires_at'] = time() + (int) ($decoded['expires_in'] ?? 3600);
-        $this->writeJsonFile($this->tokenPath, $token);
+        $tokenJson = json_encode($token, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($tokenJson === false) {
+            throw new RuntimeException('Gmail OAuthトークンJSONの生成に失敗しました');
+        }
+        if (file_put_contents($this->tokenPath, $tokenJson . PHP_EOL, LOCK_EX) === false) {
+            throw new RuntimeException("Gmail OAuthトークンファイルを書き込めません: {$this->tokenPath}");
+        }
+        @chmod($this->tokenPath, 0600);
 
         $this->logger->info('Gmail access_tokenを更新しました');
 
