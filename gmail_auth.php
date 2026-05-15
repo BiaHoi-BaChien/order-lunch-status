@@ -172,7 +172,8 @@ function exchangeCodeForToken(array $client, string $code, string $redirectUri, 
     curl_close($ch);
 
     if ($body === false || $status < 200 || $status >= 300) {
-        throw new RuntimeException("OAuthトークン交換に失敗しました: status={$status}, error={$error}, body={$body}");
+        $summary = $body === false ? $error : apiErrorSummary((string) $body);
+        throw new RuntimeException("OAuthトークン交換に失敗しました: status={$status}, error={$summary}");
     }
 
     $decoded = json_decode((string) $body, true);
@@ -205,4 +206,40 @@ function writeJsonFile(string $path, array $data): void
 function base64Url(string $value): string
 {
     return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+}
+
+function apiErrorSummary(string $body): string
+{
+    $decoded = json_decode($body, true);
+    if (is_array($decoded)) {
+        $error = $decoded['error'] ?? null;
+        if (is_scalar($error) && (string) $error !== '') {
+            return truncateErrorSummary((string) $error);
+        }
+
+        if (is_array($error)) {
+            return truncateErrorSummary(implode(' / ', array_filter([
+                $error['status'] ?? null,
+                $error['reason'] ?? null,
+                $error['message'] ?? null,
+            ], static fn ($value): bool => is_scalar($value) && (string) $value !== '')));
+        }
+
+        return truncateErrorSummary(implode(' / ', array_filter([
+            $decoded['error_description'] ?? null,
+            $decoded['message'] ?? null,
+        ], static fn ($value): bool => is_scalar($value) && (string) $value !== '')));
+    }
+
+    return 'レスポンス本文はログ出力しません';
+}
+
+function truncateErrorSummary(string $summary): string
+{
+    $summary = trim(preg_replace('/\s+/u', ' ', $summary) ?? $summary);
+    if ($summary === '') {
+        return '詳細なし';
+    }
+
+    return mb_strlen($summary, 'UTF-8') > 200 ? mb_substr($summary, 0, 200, 'UTF-8') . '...' : $summary;
 }

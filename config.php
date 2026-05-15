@@ -55,7 +55,7 @@ function envBool(string $key, bool $default = false): bool
     return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
 }
 
-function envPositiveInt(string $key, int $default): int
+function envPositiveInt(string $key, int $default, int $max): int
 {
     $value = getenv($key);
     if ($value === false || $value === '') {
@@ -63,10 +63,15 @@ function envPositiveInt(string $key, int $default): int
     }
 
     if (preg_match('/^[1-9]\d*$/', $value) !== 1) {
-        throw new RuntimeException("環境変数 {$key} は1以上の整数を指定してください");
+        throw new RuntimeException("環境変数 {$key} は 1 以上 {$max} 以下の整数を指定してください");
     }
 
-    return (int) $value;
+    $intValue = (int) $value;
+    if ($intValue > $max) {
+        throw new RuntimeException("環境変数 {$key} は 1 以上 {$max} 以下の整数を指定してください");
+    }
+
+    return $intValue;
 }
 
 function isAbsolutePath(string $path): bool
@@ -113,8 +118,8 @@ return [
     'notion_ticket_data_source_id' => envValue('NOTION_TICKET_DATA_SOURCE_ID'),
     'gmail_user_id' => envValue('GMAIL_USER_ID', 'me'),
     'timezone' => $timezone,
-    'lookback_days' => envPositiveInt('LOOKBACK_DAYS', 7),
-    'initial_record_days' => envPositiveInt('INITIAL_RECORD_DAYS', 30),
+    'lookback_days' => envPositiveInt('LOOKBACK_DAYS', 7, 100),
+    'initial_record_days' => envPositiveInt('INITIAL_RECORD_DAYS', 30, 100),
     'shop_name' => envValue('SHOP_NAME', '松屋'),
     'gmail_credentials_path' => projectPath(envValue('GMAIL_CREDENTIALS_PATH', 'credentials/gmail_credentials.json')),
     'gmail_token_path' => projectPath(envValue('GMAIL_TOKEN_PATH', 'credentials/gmail_token.json')),
