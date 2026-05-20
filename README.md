@@ -54,6 +54,16 @@ LOG_OUTPUT_UNIT=single   # logs/lunch_batch.log
 
 処理件数、スキップ件数、エラー件数、各エラー詳細を記録します。
 
+## 実行時間制御
+
+Hostinger側のcronは毎時起動にし、PHP側で実行してよい時間帯を制御します。既定では `TIMEZONE` の時刻で9時から23時までだけ本処理を実行し、それ以外の時間帯はログを出して正常終了します。
+
+```env
+RUN_WINDOW_ENABLED=true
+RUN_WINDOW_START_HOUR=9
+RUN_WINDOW_END_HOUR=23
+```
+
 ## Slack通知
 
 処理結果をSlack Incoming Webhookに通知できます。既定では無効です。
@@ -68,5 +78,5 @@ SLACK_WEBHOOK_URL=
 ## cron例
 
 ```cron
-0 6 * * * cd /path/to/project && /usr/bin/php batch_lunch_order.php
+0 * * * * cd /path/to/project && /usr/bin/php batch_lunch_order.php
 ```

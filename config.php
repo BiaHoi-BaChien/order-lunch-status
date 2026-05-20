@@ -89,14 +89,17 @@ $timezone = envValue('TIMEZONE', 'Asia/Ho_Chi_Minh');
 $logOutputUnit = strtolower(envValue('LOG_OUTPUT_UNIT', 'daily'));
 $slackNotificationEnabled = envBool('SLACK_NOTIFICATION_ENABLED', false);
 $slackWebhookUrl = envValue('SLACK_WEBHOOK_URL', '');
+$runWindowEnabled = envBool('RUN_WINDOW_ENABLED', true);
+$runWindowStartHour = (int) envValue('RUN_WINDOW_START_HOUR', '9');
+$runWindowEndHour = (int) envValue('RUN_WINDOW_END_HOUR', '23');
 if ($slackNotificationEnabled && $slackWebhookUrl === '') {
     throw new RuntimeException('SLACK_NOTIFICATION_ENABLED=true の場合は SLACK_WEBHOOK_URL を設定してください');
 }
 
 return [
-    'notion_api_key' => envValue('NOTION_API_KEY'),
-    'notion_order_data_source_id' => envValue('NOTION_ORDER_DATA_SOURCE_ID'),
-    'notion_ticket_data_source_id' => envValue('NOTION_TICKET_DATA_SOURCE_ID'),
+    'notion_api_key' => envValue('NOTION_API_KEY', ''),
+    'notion_order_data_source_id' => envValue('NOTION_ORDER_DATA_SOURCE_ID', ''),
+    'notion_ticket_data_source_id' => envValue('NOTION_TICKET_DATA_SOURCE_ID', ''),
     'gmail_user_id' => envValue('GMAIL_USER_ID', 'me'),
     'timezone' => $timezone,
     'lookback_days' => (int) envValue('LOOKBACK_DAYS', '7'),
@@ -108,4 +111,7 @@ return [
     'log_file_path' => logFilePath($logOutputUnit, $timezone),
     'slack_notification_enabled' => $slackNotificationEnabled,
     'slack_webhook_url' => $slackWebhookUrl,
+    'run_window_enabled' => $runWindowEnabled,
+    'run_window_start_hour' => $runWindowStartHour,
+    'run_window_end_hour' => $runWindowEndHour,
 ];
