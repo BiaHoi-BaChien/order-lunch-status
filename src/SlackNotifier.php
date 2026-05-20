@@ -13,6 +13,17 @@ final class SlackNotifier
     /**
      * @param array<string, mixed> $summary
      */
+    public static function shouldNotifyResult(array $summary): bool
+    {
+        return ((int) ($summary['errors'] ?? 0)) > 0
+            || ((int) ($summary['initial_created'] ?? 0)) > 0
+            || ((int) ($summary['order_confirmation_success'] ?? 0)) > 0
+            || ((int) ($summary['receipt_success'] ?? 0)) > 0;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     */
     public function notifyResult(array $summary): void
     {
         $payload = [
