@@ -6,7 +6,6 @@ require_once __DIR__ . '/../src/SlackNotifier.php';
 
 $notifier = new SlackNotifier('https://example.com/webhook', 'Asia/Ho_Chi_Minh');
 $method = new ReflectionMethod(SlackNotifier::class, 'buildMessage');
-$method->setAccessible(true);
 
 $message = $method->invoke($notifier, [
     'initial_created' => 0,
@@ -52,11 +51,37 @@ assertContains("直近の注文状況:\n2026/05/11(月) [受付済] 牛めし（
 assertContains('2026/05/12(火) [注文済] 唐揚げ定食（B券：定食・丼） [S]', $message);
 assertContains('2026/05/13(水) [未注文]', $message);
 
+assertSame(false, SlackNotifier::shouldNotifyResult([
+    'initial_created' => 0,
+    'order_confirmation_success' => 0,
+    'receipt_success' => 0,
+    'errors' => 0,
+]));
+assertSame(true, SlackNotifier::shouldNotifyResult([
+    'initial_created' => 0,
+    'order_confirmation_success' => 0,
+    'receipt_success' => 1,
+    'errors' => 0,
+]));
+assertSame(true, SlackNotifier::shouldNotifyResult([
+    'initial_created' => 0,
+    'order_confirmation_success' => 0,
+    'receipt_success' => 0,
+    'errors' => 1,
+]));
+
 echo "SlackNotifier test passed\n";
 
 function assertContains(string $expected, string $actual): void
 {
     if (!str_contains($actual, $expected)) {
         throw new RuntimeException('Assertion failed: expected substring=' . $expected . ', actual=' . $actual);
+    }
+}
+
+function assertSame(mixed $expected, mixed $actual): void
+{
+    if ($expected !== $actual) {
+        throw new RuntimeException('Assertion failed: expected=' . var_export($expected, true) . ', actual=' . var_export($actual, true));
     }
 }
