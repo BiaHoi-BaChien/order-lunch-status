@@ -74,6 +74,21 @@ function envPositiveInt(string $key, int $default, int $max): int
     return $intValue;
 }
 
+function envOptionalPath(string $key): ?string
+{
+    $value = getenv($key);
+    if ($value === false || $value === '') {
+        return null;
+    }
+
+    $path = projectPath($value);
+    if (!is_file($path)) {
+        throw new RuntimeException("環境変数 {$key} のファイルが見つかりません: {$path}");
+    }
+
+    return $path;
+}
+
 function isAbsolutePath(string $path): bool
 {
     return str_starts_with($path, '/')
@@ -126,6 +141,7 @@ return [
     'shop_name' => envValue('SHOP_NAME', '松屋'),
     'gmail_credentials_path' => projectPath(envValue('GMAIL_CREDENTIALS_PATH', 'credentials/gmail_credentials.json')),
     'gmail_token_path' => projectPath(envValue('GMAIL_TOKEN_PATH', 'credentials/gmail_token.json')),
+    'curl_ca_bundle_path' => envOptionalPath('CURL_CA_BUNDLE'),
     'log_output_unit' => $logOutputUnit,
     'log_file_path' => logFilePath($logOutputUnit, $timezone),
     'slack_notification_enabled' => $slackNotificationEnabled,

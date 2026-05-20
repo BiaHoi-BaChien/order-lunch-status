@@ -10,7 +10,8 @@ final class GmailClient
         private readonly string $userId,
         private readonly string $credentialsPath,
         private readonly string $tokenPath,
-        private readonly Logger $logger
+        private readonly Logger $logger,
+        private readonly ?string $caBundlePath = null
     ) {
     }
 
@@ -127,10 +128,10 @@ final class GmailClient
                 'grant_type' => 'refresh_token',
             ]),
         ]);
+        CurlSupport::applyCaBundle($ch, $this->caBundlePath);
         $body = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
 
         if ($body === false || $status < 200 || $status >= 300) {
             $summary = $body === false ? $error : $this->apiErrorSummary((string) $body);
@@ -207,6 +208,7 @@ final class GmailClient
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_HTTPHEADER => array_merge($headers, ['Content-Type: application/json']),
         ]);
+        CurlSupport::applyCaBundle($ch, $this->caBundlePath);
         if ($payload !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         }
@@ -214,7 +216,6 @@ final class GmailClient
         $body = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
 
         if ($body === false) {
             throw new RuntimeException("Gmail API通信失敗: {$error}");

@@ -9,7 +9,8 @@ final class NotionClient
     public function __construct(
         private readonly string $apiKey,
         private readonly string $orderDataSourceId,
-        private readonly string $ticketDataSourceId
+        private readonly string $ticketDataSourceId,
+        private readonly ?string $caBundlePath = null
     ) {
     }
 
@@ -111,11 +112,11 @@ final class NotionClient
             ],
             CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
+        CurlSupport::applyCaBundle($ch, $this->caBundlePath);
 
         $body = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
 
         if ($body === false) {
             throw new RuntimeException("Notion API通信失敗: {$error}");

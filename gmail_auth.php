@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
+require_once __DIR__ . '/src/CurlSupport.php';
+
 try {
     $config = require __DIR__ . '/config.php';
     date_default_timezone_set($config['timezone']);
@@ -51,7 +53,7 @@ try {
         throw new RuntimeException('OAuth認可コードを取得できませんでした');
     }
 
-    $token = exchangeCodeForToken($client, (string) $query['code'], $redirectUri, $codeVerifier);
+    $token = exchangeCodeForToken($client, (string) $query['code'], $redirectUri, $codeVerifier, $config['curl_ca_bundle_path']);
     if (empty($token['refresh_token'])) {
         throw new RuntimeException('refresh_tokenを取得できませんでした。Googleの権限画面でアプリ連携を解除してから再実行してください。');
     }
@@ -149,7 +151,7 @@ function waitForOAuthCallback($server): array
     return $query;
 }
 
-function exchangeCodeForToken(array $client, string $code, string $redirectUri, string $codeVerifier): array
+function exchangeCodeForToken(array $client, string $code, string $redirectUri, string $codeVerifier, ?string $caBundlePath): array
 {
     $ch = curl_init('https://oauth2.googleapis.com/token');
     curl_setopt_array($ch, [
@@ -165,11 +167,11 @@ function exchangeCodeForToken(array $client, string $code, string $redirectUri, 
             'redirect_uri' => $redirectUri,
         ], '', '&', PHP_QUERY_RFC3986),
     ]);
+    CurlSupport::applyCaBundle($ch, $caBundlePath);
 
     $body = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $error = curl_error($ch);
-    curl_close($ch);
 
     if ($body === false || $status < 200 || $status >= 300) {
         $summary = $body === false ? $error : apiErrorSummary((string) $body);
