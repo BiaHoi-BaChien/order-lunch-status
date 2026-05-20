@@ -21,6 +21,12 @@ php gmail_auth.php
 
 `gmail_token.json` には `refresh_token` が含まれます。バッチ実行時に `access_token` が期限切れの場合は自動更新します。
 
+ローカル実行で `unable to get local issuer certificate` が出る場合は、PHP/cURL がCA証明書バンドルを見つけられていません。Git for Windowsなどに含まれる `ca-bundle.crt` のパスを `.env` に設定してください。
+
+```env
+CURL_CA_BUNDLE=D:\Program Files\Git\mingw64\etc\ssl\certs\ca-bundle.crt
+```
+
 
 ## Notion設定
 
