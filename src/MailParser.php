@@ -477,6 +477,7 @@ final class MailParser
             '唐揚げ定食（B券：定食・丼）',
             'ふわ玉あんかけ牛めし（B券：定食・丼）',
             'ふわとろあんかけ牛めし（B券：定食・丼）',
+            'チキンかつカレー（B券：定食・丼）',
         ];
 
         foreach ($knownItems as $item) {
