@@ -7,6 +7,14 @@ require_once __DIR__ . '/../src/MailParser.php';
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 
 $parser = new MailParser();
+$mappedParser = new MailParser([
+    'mapped_fields' => [
+        [
+            'key' => 'curry_type',
+            'mail_labels' => ['カレーの種類'],
+        ],
+    ],
+]);
 
 $orderBody = implode("\n", [
     'お子様がお弁当を召し上がる日付を記載してください。',
@@ -174,6 +182,16 @@ $curryOrder = $parser->parseOrderConfirmation([
 assertSame('チキンかつカレー（B券：定食・丼）', $curryOrder['item_name']);
 assertSame('S', $curryOrder['size']);
 assertSame('ネギ抜き、カレーの種類: 甘口（カレー粉由来の辛さがあるため、多少の辛さはあります）', $curryOrder['note']);
+
+$mappedCurryOrder = $mappedParser->parseOrderConfirmation([
+    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
+    'payload' => [
+        'mimeType' => 'text/html',
+        'body' => ['data' => base64Url($curryHtmlBody)],
+    ],
+]);
+
+assertSame('甘口（カレー粉由来の辛さがあるため、多少の辛さはあります）', $mappedCurryOrder['mapped_fields']['curry_type'] ?? null);
 
 $receipt = $parser->parseReceipt([
     'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
