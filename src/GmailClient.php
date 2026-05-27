@@ -5,6 +5,8 @@ declare(strict_types=1);
 final class GmailClient
 {
     private ?string $accessToken = null;
+    /** @var array<string, string> */
+    private array $labelIdsByName = [];
 
     public function __construct(
         private readonly string $userId,
@@ -53,6 +55,47 @@ final class GmailClient
     public function messageUrl(string $messageId): string
     {
         return "https://mail.google.com/mail/u/0/#inbox/{$messageId}";
+    }
+
+    public function addLabel(string $messageId, string $labelName): void
+    {
+        $labelId = $this->labelId($labelName);
+        $this->request('POST', '/messages/' . rawurlencode($messageId) . '/modify', [
+            'addLabelIds' => [$labelId],
+            'removeLabelIds' => [],
+        ]);
+    }
+
+    private function labelId(string $labelName): string
+    {
+        $labelName = trim($labelName);
+        if ($labelName === '') {
+            throw new RuntimeException('Gmailラベル名が空です');
+        }
+
+        if (isset($this->labelIdsByName[$labelName])) {
+            return $this->labelIdsByName[$labelName];
+        }
+
+        $response = $this->request('GET', '/labels');
+        foreach (($response['labels'] ?? []) as $label) {
+            if (($label['type'] ?? null) === 'user' && ($label['name'] ?? null) === $labelName && isset($label['id'])) {
+                return $this->labelIdsByName[$labelName] = (string) $label['id'];
+            }
+        }
+
+        $created = $this->request('POST', '/labels', [
+            'name' => $labelName,
+            'labelListVisibility' => 'labelShow',
+            'messageListVisibility' => 'show',
+        ]);
+        if (empty($created['id'])) {
+            throw new RuntimeException("Gmailラベルを作成できません: {$labelName}");
+        }
+
+        $this->logger->info("Gmailラベル作成: name={$labelName}");
+
+        return $this->labelIdsByName[$labelName] = (string) $created['id'];
     }
 
     /**

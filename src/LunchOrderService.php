@@ -26,9 +26,11 @@ final class LunchOrderService
             'order_confirmation_found' => 0,
             'order_confirmation_success' => 0,
             'order_confirmation_skipped' => 0,
+            'order_confirmation_labeled' => 0,
             'receipt_found' => 0,
             'receipt_success' => 0,
             'receipt_skipped' => 0,
+            'receipt_labeled' => 0,
             'errors' => 0,
         ];
 
@@ -45,6 +47,9 @@ final class LunchOrderService
             try {
                 $result = $this->processOrderConfirmation($messageRef['id']);
                 $summary[$result === 'success' ? 'order_confirmation_success' : 'order_confirmation_skipped']++;
+                if ($this->labelProcessedMessage($messageRef['id'])) {
+                    $summary['order_confirmation_labeled']++;
+                }
             } catch (Throwable $e) {
                 $summary['errors']++;
                 $this->logger->error("注文確認メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}");
@@ -61,6 +66,9 @@ final class LunchOrderService
             try {
                 $result = $this->processReceipt($messageRef['id']);
                 $summary[$result === 'success' ? 'receipt_success' : 'receipt_skipped']++;
+                if ($this->labelProcessedMessage($messageRef['id'])) {
+                    $summary['receipt_labeled']++;
+                }
             } catch (Throwable $e) {
                 $summary['errors']++;
                 $this->logger->error("注文受付メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}");
@@ -70,8 +78,10 @@ final class LunchOrderService
         $this->logger->info('初期レコード作成件数: ' . $summary['initial_created']);
         $this->logger->info('注文確認メール処理成功件数: ' . $summary['order_confirmation_success']);
         $this->logger->info('注文確認メールスキップ件数: ' . $summary['order_confirmation_skipped']);
+        $this->logger->info('注文確認メールラベル付与件数: ' . $summary['order_confirmation_labeled']);
         $this->logger->info('注文受付メール処理成功件数: ' . $summary['receipt_success']);
         $this->logger->info('注文受付メールスキップ件数: ' . $summary['receipt_skipped']);
+        $this->logger->info('注文受付メールラベル付与件数: ' . $summary['receipt_labeled']);
         $this->logger->info('エラー件数: ' . $summary['errors']);
         $summary['recent_orders'] = $this->recentOrders(5);
 
@@ -109,8 +119,25 @@ final class LunchOrderService
         }
         $terms[] = 'subject:"' . str_replace('"', '\\"', $subject) . '"';
         $terms[] = sprintf('newer_than:%dd', (int) $this->config['lookback_days']);
+        $processedLabelName = trim((string) ($this->config['gmail_processed_label_name'] ?? ''));
+        if ($processedLabelName !== '') {
+            $terms[] = '-label:"' . str_replace('"', '\\"', $processedLabelName) . '"';
+        }
 
         return implode(' ', $terms);
+    }
+
+    private function labelProcessedMessage(string $messageId): bool
+    {
+        $labelName = trim((string) ($this->config['gmail_processed_label_name'] ?? ''));
+        if ($labelName === '') {
+            return false;
+        }
+
+        $this->gmail->addLabel($messageId, $labelName);
+        $this->logger->info("Gmail処理済みラベル付与: label={$labelName}, message_id={$messageId}");
+
+        return true;
     }
 
     private function processOrderConfirmation(string $messageId): string

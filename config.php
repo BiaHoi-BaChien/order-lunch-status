@@ -224,6 +224,7 @@ $runWindowEndHour = (int) envValue('RUN_WINDOW_END_HOUR', '23');
 $mailOrderFrom = envString('MAIL_ORDER_FROM', 'forms-receipts-noreply@google.com');
 $mailOrderSubject = envValue('MAIL_ORDER_SUBJECT', 'フォームにご記入いただきありがとうございます');
 $mailReceiptSubject = envValue('MAIL_RECEIPT_SUBJECT', '【松屋】お弁当注文受付確認');
+$gmailProcessedLabelName = envString('GMAIL_PROCESSED_LABEL_NAME', 'order-lunch-status-processed');
 $mailNotionPropertyMappings = envMailNotionPropertyMappings('MAIL_NOTION_PROPERTY_MAPPINGS_JSON', 'MAIL_NOTION_PROPERTY_MAPPINGS_PATH');
 if ($slackNotificationEnabled && $slackWebhookUrl === '') {
     throw new RuntimeException('SLACK_NOTIFICATION_ENABLED=true の場合は SLACK_WEBHOOK_URL を設定してください');
@@ -251,6 +252,7 @@ return [
     'mail_order_from' => $mailOrderFrom,
     'mail_order_subject' => $mailOrderSubject,
     'mail_receipt_subject' => $mailReceiptSubject,
+    'gmail_processed_label_name' => $gmailProcessedLabelName,
     'mail_parser' => [
         'date_labels' => envList('MAIL_FIELD_DATE_LABELS', [
             'お子様がお弁当を召し上がる日付を記載してください',
