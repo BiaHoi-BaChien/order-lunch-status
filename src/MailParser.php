@@ -42,12 +42,12 @@ final class MailParser
     ];
 
     /**
-     * @var array{date_labels:list<string>,ticket_labels:list<string>,item_labels:list<string>,size_labels:list<string>,note_labels:list<string>,curry_type_labels:list<string>,known_items:list<string>}
+     * @var array{date_labels:list<string>,ticket_labels:list<string>,item_labels:list<string>,size_labels:list<string>,note_labels:list<string>,curry_type_labels:list<string>,known_items:list<string>,mapped_fields:list<array{key:string,mail_labels:list<string>}>}
      */
     private array $settings;
 
     /**
-     * @param array<string, list<string>> $settings
+     * @param array<string, mixed> $settings
      */
     public function __construct(array $settings = [])
     {
@@ -59,11 +59,12 @@ final class MailParser
             'note_labels' => $this->stringList($settings['note_labels'] ?? null, self::DEFAULT_NOTE_LABELS),
             'curry_type_labels' => $this->stringList($settings['curry_type_labels'] ?? null, self::DEFAULT_CURRY_TYPE_LABELS),
             'known_items' => $this->stringList($settings['known_items'] ?? null, self::DEFAULT_KNOWN_ITEMS),
+            'mapped_fields' => $this->fieldMappings($settings['mapped_fields'] ?? null),
         ];
     }
 
     /**
-     * @return array{date:string,ticket_no:string,item_name:string,size:string,note:string,warn_previous_year:bool}
+     * @return array{date:string,ticket_no:string,item_name:string,size:string,note:string,warn_previous_year:bool,mapped_fields:array<string, string>}
      */
     public function parseOrderConfirmation(array $message): array
     {
@@ -112,6 +113,7 @@ final class MailParser
             'size' => $size,
             'note' => $note,
             'warn_previous_year' => $this->isPreviousYearWarning($dateAnswer, $receivedAt),
+            'mapped_fields' => $this->extractMappedFields($text, $htmlAnswers),
         ];
     }
 
@@ -540,6 +542,29 @@ final class MailParser
         return $this->normalizeText($answer);
     }
 
+    /**
+     * @param array<string, string> $htmlAnswers
+     * @return array<string, string>
+     */
+    private function extractMappedFields(string $text, array $htmlAnswers): array
+    {
+        $fields = [];
+        foreach ($this->settings['mapped_fields'] as $mapping) {
+            $answer = $this->answerFromMap($htmlAnswers, $mapping['mail_labels'])
+                ?? $this->answerFor($text, $mapping['mail_labels']);
+            if ($answer === null) {
+                continue;
+            }
+
+            $value = $this->normalizeText($answer);
+            if ($value !== '') {
+                $fields[$mapping['key']] = $value;
+            }
+        }
+
+        return $fields;
+    }
+
     private function appendNote(string $note, string $addition): string
     {
         $note = $this->normalizeText($note);
@@ -651,5 +676,34 @@ final class MailParser
         ));
 
         return $items === [] ? $default : $items;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<array{key:string,mail_labels:list<string>}>
+     */
+    private function fieldMappings(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $mappings = [];
+        foreach ($value as $mapping) {
+            if (!is_array($mapping)) {
+                continue;
+            }
+
+            $key = trim((string) ($mapping['key'] ?? ''));
+            $labels = $this->stringList($mapping['mail_labels'] ?? null, []);
+            if ($key !== '' && $labels !== []) {
+                $mappings[] = [
+                    'key' => $key,
+                    'mail_labels' => $labels,
+                ];
+            }
+        }
+
+        return $mappings;
     }
 }

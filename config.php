@@ -102,6 +102,73 @@ function envList(string $key, array $default): array
     return $items === [] ? array_values($default) : $items;
 }
 
+/**
+ * @return list<array{key:string,mail_labels:list<string>,notion_property:string,notion_type:string}>
+ */
+function envMailNotionPropertyMappings(string $jsonKey, string $pathKey): array
+{
+    $json = getenv($jsonKey);
+    $path = getenv($pathKey);
+    if (($json === false || trim($json) === '') && $path !== false && trim($path) !== '') {
+        $resolvedPath = projectPath(trim($path));
+        if (!is_file($resolvedPath)) {
+            throw new RuntimeException("環境変数 {$pathKey} のファイルが見つかりません: {$resolvedPath}");
+        }
+
+        $json = file_get_contents($resolvedPath);
+        if ($json === false) {
+            throw new RuntimeException("環境変数 {$pathKey} のファイルを読み込めません: {$resolvedPath}");
+        }
+    }
+    if ($json === false || trim($json) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        throw new RuntimeException("環境変数 {$jsonKey} はJSON配列を指定してください");
+    }
+
+    $mappings = [];
+    foreach ($decoded as $i => $mapping) {
+        if (!is_array($mapping)) {
+            throw new RuntimeException("{$jsonKey}[{$i}] はオブジェクトを指定してください");
+        }
+
+        $property = trim((string) ($mapping['notion_property'] ?? ''));
+        $labels = $mapping['mail_labels'] ?? $mapping['mail_label'] ?? [];
+        if (is_string($labels)) {
+            $labels = [$labels];
+        }
+        if (!is_array($labels)) {
+            throw new RuntimeException("{$jsonKey}[{$i}].mail_labels は文字列または文字列配列を指定してください");
+        }
+
+        $labels = array_values(array_filter(
+            array_map(static fn (mixed $label): string => is_scalar($label) ? trim((string) $label) : '', $labels),
+            static fn (string $label): bool => $label !== ''
+        ));
+        if ($property === '' || $labels === []) {
+            throw new RuntimeException("{$jsonKey}[{$i}] は notion_property と mail_labels が必須です");
+        }
+
+        $key = trim((string) ($mapping['key'] ?? $property));
+        $type = strtolower(trim((string) ($mapping['notion_type'] ?? 'rich_text')));
+        if (!in_array($type, ['rich_text', 'select', 'title', 'url', 'number', 'checkbox'], true)) {
+            throw new RuntimeException("{$jsonKey}[{$i}].notion_type は rich_text, select, title, url, number, checkbox のいずれかを指定してください");
+        }
+
+        $mappings[] = [
+            'key' => $key === '' ? $property : $key,
+            'mail_labels' => $labels,
+            'notion_property' => $property,
+            'notion_type' => $type,
+        ];
+    }
+
+    return $mappings;
+}
+
 function envOptionalPath(string $key): ?string
 {
     $value = getenv($key);
@@ -157,6 +224,7 @@ $runWindowEndHour = (int) envValue('RUN_WINDOW_END_HOUR', '23');
 $mailOrderFrom = envString('MAIL_ORDER_FROM', 'forms-receipts-noreply@google.com');
 $mailOrderSubject = envValue('MAIL_ORDER_SUBJECT', 'フォームにご記入いただきありがとうございます');
 $mailReceiptSubject = envValue('MAIL_RECEIPT_SUBJECT', '【松屋】お弁当注文受付確認');
+$mailNotionPropertyMappings = envMailNotionPropertyMappings('MAIL_NOTION_PROPERTY_MAPPINGS_JSON', 'MAIL_NOTION_PROPERTY_MAPPINGS_PATH');
 if ($slackNotificationEnabled && $slackWebhookUrl === '') {
     throw new RuntimeException('SLACK_NOTIFICATION_ENABLED=true の場合は SLACK_WEBHOOK_URL を設定してください');
 }
@@ -220,5 +288,13 @@ return [
             'ふわとろあんかけ牛めし（B券：定食・丼）',
             'チキンかつカレー（B券：定食・丼）',
         ]),
+        'mapped_fields' => array_map(
+            static fn (array $mapping): array => [
+                'key' => $mapping['key'],
+                'mail_labels' => $mapping['mail_labels'],
+            ],
+            $mailNotionPropertyMappings
+        ),
     ],
+    'mail_notion_property_mappings' => $mailNotionPropertyMappings,
 ];

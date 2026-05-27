@@ -63,9 +63,26 @@ MAIL_FIELD_SIZE_LABELS=ライスの量|ご飯の量|サイズ
 MAIL_FIELD_NOTE_LABELS=備考|ご要望
 MAIL_FIELD_CURRY_TYPE_LABELS=カレーの種類
 MAIL_KNOWN_ITEMS=牛めし（A券：牛めし）|キムチ牛めし（B券：定食・丼）|唐揚げ定食（B券：定食・丼）|ふわ玉あんかけ牛めし（B券：定食・丼）|ふわとろあんかけ牛めし（B券：定食・丼）|チキンかつカレー（B券：定食・丼）
+MAIL_NOTION_PROPERTY_MAPPINGS_JSON=[]
+MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
 複数の質問文や品名候補は `|` 区切りで指定します。`MAIL_ORDER_FROM` を空にすると、注文確認メール検索では送信元条件を付けずに件名と `LOOKBACK_DAYS` だけで検索します。
+
+追加のGoogleフォーム回答をNotionプロパティへ反映する場合は、`MAIL_NOTION_PROPERTY_MAPPINGS_JSON` または `MAIL_NOTION_PROPERTY_MAPPINGS_PATH` でJSON配列を指定します。既存の注文更新payloadは固定のまま維持し、ここで指定した追加プロパティだけを更新に加えます。既存payloadと同じNotionプロパティ名を指定した場合は既存payloadを優先します。
+
+```json
+[
+  {
+    "key": "curry_type",
+    "mail_labels": ["カレーの種類"],
+    "notion_property": "カレーの種類",
+    "notion_type": "select"
+  }
+]
+```
+
+`notion_type` は `rich_text`, `select`, `title`, `url`, `number`, `checkbox` を指定できます。未指定時は `rich_text` です。
 
 ## ログ
 

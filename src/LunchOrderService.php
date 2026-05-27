@@ -10,6 +10,7 @@ final class LunchOrderService
         private readonly GmailClient $gmail,
         private readonly NotionClient $notion,
         private readonly MailParser $parser,
+        private readonly NotionPropertyPayloadBuilder $propertyPayloadBuilder,
         private readonly Logger $logger,
         private readonly array $config
     ) {
@@ -141,7 +142,7 @@ final class LunchOrderService
         }
 
         $date = new DateTimeImmutable($order['date']);
-        $this->notion->updateOrder((string) $page['id'], [
+        $properties = [
             '品名' => ['title' => [['text' => ['content' => $order['item_name']]]]],
             '日付' => ['date' => ['start' => $order['date']]],
             '曜日' => ['select' => ['name' => $this->weekday($date)]],
@@ -151,7 +152,18 @@ final class LunchOrderService
             '備考' => ['rich_text' => $order['note'] === '' ? [] : [['text' => ['content' => $order['note']]]]],
             '注文確認メール' => ['url' => $url],
             'お弁当チケット' => ['relation' => [['id' => (string) $ticket['id']]]],
-        ]);
+        ];
+        $mappedProperties = $this->propertyPayloadBuilder->build(
+            $this->config['mail_notion_property_mappings'] ?? [],
+            $order['mapped_fields'] ?? []
+        );
+        foreach ($mappedProperties as $property => $payload) {
+            if (!array_key_exists($property, $properties)) {
+                $properties[$property] = $payload;
+            }
+        }
+
+        $this->notion->updateOrder((string) $page['id'], $properties);
 
         $this->logger->info("注文確認メール処理成功: date={$order['date']}, ticket_no={$order['ticket_no']}, message_id={$messageId}");
 
