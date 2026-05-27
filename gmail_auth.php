@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
 require_once __DIR__ . '/src/CurlSupport.php';
 
@@ -28,7 +28,7 @@ try {
         'client_id' => $client['client_id'],
         'redirect_uri' => $redirectUri,
         'response_type' => 'code',
-        'scope' => GMAIL_READONLY_SCOPE,
+        'scope' => GMAIL_MODIFY_SCOPE,
         'access_type' => 'offline',
         'prompt' => 'consent',
         'code_challenge' => $codeChallenge,
