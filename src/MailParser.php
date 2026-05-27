@@ -41,16 +41,18 @@ final class MailParser
             throw new RuntimeException('品名を抽出できません');
         }
 
-        $sizeLabels = ['ライスの量', 'ご飯の量', 'サイズ'];
-        $sizeAnswer = $this->answerFromMap($htmlAnswers, $sizeLabels) ?? $this->answerFor($text, $sizeLabels);
-        $sizeSource = $sizeAnswer ?? $text;
-        if (!preg_match('/^\s*([SML])\b|([SML])\s*(?:ライス)?\s*\d{3}\s*[gｇ]/iu', $sizeSource, $sizeMatch)) {
+        $sizeAnswer = $this->extractSizeAnswer($text, $htmlAnswers);
+        if (!preg_match('/^\s*([SML])\b|([SML])\s*(?:ライス)?\s*\d{3}\s*[gｇ]/iu', $sizeAnswer, $sizeMatch)) {
             throw new RuntimeException('サイズを抽出できません');
         }
         $size = strtoupper(($sizeMatch[1] ?? '') !== '' ? $sizeMatch[1] : $sizeMatch[2]);
 
         $noteLabels = ['備考', 'ご要望'];
         $note = $this->answerFromMap($htmlAnswers, $noteLabels) ?? ($htmlAnswers !== [] ? '' : ($this->answerFor($text, $noteLabels) ?? ''));
+        $curryType = $this->extractCurryTypeAnswer($text, $htmlAnswers);
+        if ($curryType !== null) {
+            $note = $this->appendNote($note, 'カレーの種類: ' . $curryType);
+        }
 
         return [
             'date' => $this->parseJapaneseDate($dateAnswer, $receivedAt),
@@ -448,6 +450,59 @@ final class MailParser
         return null;
     }
 
+    private function extractSizeAnswer(string $text, array $htmlAnswers): string
+    {
+        $sizeLabels = ['ライスの量', 'ご飯の量', 'サイズ'];
+        $answers = [];
+
+        foreach ($htmlAnswers as $question => $answer) {
+            foreach ($sizeLabels as $label) {
+                if (str_contains($question, $label) && !$this->isSkippableAnswerLine($answer)) {
+                    $answers[] = $answer;
+                }
+            }
+        }
+
+        $textAnswer = $this->answerFor($text, $sizeLabels);
+        if ($textAnswer !== null) {
+            $answers[] = $textAnswer;
+        }
+        $answers[] = $text;
+
+        foreach ($answers as $answer) {
+            if (preg_match('/^\s*[SML]\b|[SML]\s*(?:ライス)?\s*\d{3}\s*[gｇ]/iu', $answer)) {
+                return $answer;
+            }
+        }
+
+        return '';
+    }
+
+    private function extractCurryTypeAnswer(string $text, array $htmlAnswers): ?string
+    {
+        $curryTypeLabels = ['カレーの種類'];
+        $answer = $this->answerFromMap($htmlAnswers, $curryTypeLabels) ?? $this->answerFor($text, $curryTypeLabels);
+        if ($answer === null) {
+            return null;
+        }
+
+        return $this->normalizeText($answer);
+    }
+
+    private function appendNote(string $note, string $addition): string
+    {
+        $note = $this->normalizeText($note);
+        $addition = $this->normalizeText($addition);
+        if ($addition === '') {
+            return $note;
+        }
+        if ($note === '') {
+            return $addition;
+        }
+
+        return $note . '、' . $addition;
+    }
+
     private function extractItemName(string $text, array $htmlAnswers): ?string
     {
         $labels = ['品名', '注文したお弁当', 'お弁当の種類', 'メニュー', 'アレルギー物質'];
@@ -477,6 +532,7 @@ final class MailParser
             '唐揚げ定食（B券：定食・丼）',
             'ふわ玉あんかけ牛めし（B券：定食・丼）',
             'ふわとろあんかけ牛めし（B券：定食・丼）',
+            'チキンかつカレー（B券：定食・丼）',
         ];
 
         foreach ($knownItems as $item) {
