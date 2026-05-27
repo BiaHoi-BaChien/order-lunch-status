@@ -33,9 +33,9 @@ final class LunchOrderService
 
         $summary['initial_created'] = $this->ensureInitialRecords();
 
-        $orderMessages = $this->gmail->searchMessages(sprintf(
-            'from:forms-receipts-noreply@google.com subject:"フォームにご記入いただきありがとうございます" newer_than:%dd',
-            (int) $this->config['lookback_days']
+        $orderMessages = $this->gmail->searchMessages($this->gmailSearchQuery(
+            (string) ($this->config['mail_order_subject'] ?? 'フォームにご記入いただきありがとうございます'),
+            (string) ($this->config['mail_order_from'] ?? 'forms-receipts-noreply@google.com')
         ));
         $summary['order_confirmation_found'] = count($orderMessages);
         $this->logger->info('注文確認メール検索件数: ' . count($orderMessages));
@@ -50,9 +50,8 @@ final class LunchOrderService
             }
         }
 
-        $receiptMessages = $this->gmail->searchMessages(sprintf(
-            'subject:"【松屋】お弁当注文受付確認" newer_than:%dd',
-            (int) $this->config['lookback_days']
+        $receiptMessages = $this->gmail->searchMessages($this->gmailSearchQuery(
+            (string) ($this->config['mail_receipt_subject'] ?? '【松屋】お弁当注文受付確認')
         ));
         $summary['receipt_found'] = count($receiptMessages);
         $this->logger->info('注文受付メール検索件数: ' . count($receiptMessages));
@@ -99,6 +98,18 @@ final class LunchOrderService
         }
 
         return $created;
+    }
+
+    private function gmailSearchQuery(string $subject, string $from = ''): string
+    {
+        $terms = [];
+        if (trim($from) !== '') {
+            $terms[] = 'from:' . trim($from);
+        }
+        $terms[] = 'subject:"' . str_replace('"', '\\"', $subject) . '"';
+        $terms[] = sprintf('newer_than:%dd', (int) $this->config['lookback_days']);
+
+        return implode(' ', $terms);
     }
 
     private function processOrderConfirmation(string $messageId): string
