@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/src/Logger.php';
+require_once __DIR__ . '/src/CurlSupport.php';
 require_once __DIR__ . '/src/GmailClient.php';
 require_once __DIR__ . '/src/NotionClient.php';
 require_once __DIR__ . '/src/MailParser.php';
@@ -55,13 +56,15 @@ try {
         $config['gmail_user_id'],
         $config['gmail_credentials_path'],
         $config['gmail_token_path'],
-        $logger
+        $logger,
+        $config['curl_ca_bundle_path']
     );
 
     $notion = new NotionClient(
         $notionApiKey,
         $notionOrderDataSourceId,
-        $notionTicketDataSourceId
+        $notionTicketDataSourceId,
+        $config['curl_ca_bundle_path']
     );
 
     $service = new LunchOrderService($gmail, $notion, new MailParser(), $logger, $config);

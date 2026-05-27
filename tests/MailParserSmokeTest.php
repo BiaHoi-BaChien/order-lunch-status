@@ -46,6 +46,19 @@ $numericTicketOrder = $parser->parseOrderConfirmation([
 
 assertSame('1234', $numericTicketOrder['ticket_no']);
 
+
+$chickenCurryBody = str_replace('キムチ牛めし（B券：定食・丼）', 'チキンかつカレー（B券：定食・丼）', $orderBody);
+$chickenCurryOrder = $parser->parseOrderConfirmation([
+    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
+    'payload' => [
+        'mimeType' => 'text/plain',
+        'body' => ['data' => base64Url($chickenCurryBody)],
+    ],
+]);
+
+assertSame('チキンかつカレー（B券：定食・丼）', $chickenCurryOrder['item_name']);
+
+
 $ticketWithFormNoiseBody = implode("\n", [
     'お子様がお弁当を召し上がる日付を記載してください。',
     '5月8日（金）',
