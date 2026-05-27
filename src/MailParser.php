@@ -4,6 +4,64 @@ declare(strict_types=1);
 
 final class MailParser
 {
+    private const DEFAULT_DATE_LABELS = [
+        'お子様がお弁当を召し上がる日付を記載してください',
+        'お弁当を召し上がる日付',
+    ];
+    private const DEFAULT_TICKET_LABELS = [
+        'お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー',
+        'お弁当ナンバー',
+        'お弁当番号',
+    ];
+    private const DEFAULT_ITEM_LABELS = [
+        '品名',
+        '注文したお弁当',
+        'お弁当の種類',
+        'メニュー',
+        'アレルギー物質',
+    ];
+    private const DEFAULT_SIZE_LABELS = [
+        'ライスの量',
+        'ご飯の量',
+        'サイズ',
+    ];
+    private const DEFAULT_NOTE_LABELS = [
+        '備考',
+        'ご要望',
+    ];
+    private const DEFAULT_CURRY_TYPE_LABELS = [
+        'カレーの種類',
+    ];
+    private const DEFAULT_KNOWN_ITEMS = [
+        '牛めし（A券：牛めし）',
+        'キムチ牛めし（B券：定食・丼）',
+        '唐揚げ定食（B券：定食・丼）',
+        'ふわ玉あんかけ牛めし（B券：定食・丼）',
+        'ふわとろあんかけ牛めし（B券：定食・丼）',
+        'チキンかつカレー（B券：定食・丼）',
+    ];
+
+    /**
+     * @var array{date_labels:list<string>,ticket_labels:list<string>,item_labels:list<string>,size_labels:list<string>,note_labels:list<string>,curry_type_labels:list<string>,known_items:list<string>}
+     */
+    private array $settings;
+
+    /**
+     * @param array<string, list<string>> $settings
+     */
+    public function __construct(array $settings = [])
+    {
+        $this->settings = [
+            'date_labels' => $this->stringList($settings['date_labels'] ?? null, self::DEFAULT_DATE_LABELS),
+            'ticket_labels' => $this->stringList($settings['ticket_labels'] ?? null, self::DEFAULT_TICKET_LABELS),
+            'item_labels' => $this->stringList($settings['item_labels'] ?? null, self::DEFAULT_ITEM_LABELS),
+            'size_labels' => $this->stringList($settings['size_labels'] ?? null, self::DEFAULT_SIZE_LABELS),
+            'note_labels' => $this->stringList($settings['note_labels'] ?? null, self::DEFAULT_NOTE_LABELS),
+            'curry_type_labels' => $this->stringList($settings['curry_type_labels'] ?? null, self::DEFAULT_CURRY_TYPE_LABELS),
+            'known_items' => $this->stringList($settings['known_items'] ?? null, self::DEFAULT_KNOWN_ITEMS),
+        ];
+    }
+
     /**
      * @return array{date:string,ticket_no:string,item_name:string,size:string,note:string,warn_previous_year:bool}
      */
@@ -13,10 +71,7 @@ final class MailParser
         $htmlAnswers = $this->extractGoogleFormAnswersFromHtml($message);
         $receivedAt = $this->receivedAt($message);
 
-        $dateLabels = [
-            'お子様がお弁当を召し上がる日付を記載してください',
-            'お弁当を召し上がる日付',
-        ];
+        $dateLabels = $this->settings['date_labels'];
         $dateAnswer = $this->answerFromMap($htmlAnswers, $dateLabels) ?? $this->answerFor($text, $dateLabels);
         if ($dateAnswer === null && preg_match('/\d{1,2}月\d{1,2}日(?:[（(][月火水木金土日][）)])?/u', $text, $m)) {
             $dateAnswer = $m[0];
@@ -25,11 +80,7 @@ final class MailParser
             throw new RuntimeException('注文日付を抽出できません');
         }
 
-        $ticketLabels = [
-            'お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー',
-            'お弁当ナンバー',
-            'お弁当番号',
-        ];
+        $ticketLabels = $this->settings['ticket_labels'];
         $ticketAnswer = $this->answerFromMap($htmlAnswers, $ticketLabels) ?? $this->answerFor($text, $ticketLabels);
         $ticketNo = trim((string) $ticketAnswer);
         if ($ticketNo === '') {
@@ -47,7 +98,7 @@ final class MailParser
         }
         $size = strtoupper(($sizeMatch[1] ?? '') !== '' ? $sizeMatch[1] : $sizeMatch[2]);
 
-        $noteLabels = ['備考', 'ご要望'];
+        $noteLabels = $this->settings['note_labels'];
         $note = $this->answerFromMap($htmlAnswers, $noteLabels) ?? ($htmlAnswers !== [] ? '' : ($this->answerFor($text, $noteLabels) ?? ''));
         $curryType = $this->extractCurryTypeAnswer($text, $htmlAnswers);
         if ($curryType !== null) {
@@ -452,7 +503,7 @@ final class MailParser
 
     private function extractSizeAnswer(string $text, array $htmlAnswers): string
     {
-        $sizeLabels = ['ライスの量', 'ご飯の量', 'サイズ'];
+        $sizeLabels = $this->settings['size_labels'];
         $answers = [];
 
         foreach ($htmlAnswers as $question => $answer) {
@@ -480,7 +531,7 @@ final class MailParser
 
     private function extractCurryTypeAnswer(string $text, array $htmlAnswers): ?string
     {
-        $curryTypeLabels = ['カレーの種類'];
+        $curryTypeLabels = $this->settings['curry_type_labels'];
         $answer = $this->answerFromMap($htmlAnswers, $curryTypeLabels) ?? $this->answerFor($text, $curryTypeLabels);
         if ($answer === null) {
             return null;
@@ -505,7 +556,7 @@ final class MailParser
 
     private function extractItemName(string $text, array $htmlAnswers): ?string
     {
-        $labels = ['品名', '注文したお弁当', 'お弁当の種類', 'メニュー', 'アレルギー物質'];
+        $labels = $this->settings['item_labels'];
         $answer = $this->answerFromMap($htmlAnswers, $labels) ?? $this->answerFor($text, $labels);
         if ($answer !== null && !preg_match('/^(S|M|L)\s*\d{3}\s*[gｇ]?$/iu', $answer)) {
             $knownAnswer = $this->knownItemName($answer);
@@ -526,16 +577,8 @@ final class MailParser
     private function knownItemName(string $value): ?string
     {
         $normalizedValue = $this->normalizeMenuText($value);
-        $knownItems = [
-            '牛めし（A券：牛めし）',
-            'キムチ牛めし（B券：定食・丼）',
-            '唐揚げ定食（B券：定食・丼）',
-            'ふわ玉あんかけ牛めし（B券：定食・丼）',
-            'ふわとろあんかけ牛めし（B券：定食・丼）',
-            'チキンかつカレー（B券：定食・丼）',
-        ];
 
-        foreach ($knownItems as $item) {
+        foreach ($this->settings['known_items'] as $item) {
             if (str_contains($normalizedValue, $item)) {
                 return $item;
             }
@@ -586,5 +629,27 @@ final class MailParser
             || str_contains($line, 'ライス')
             || str_contains($line, '備考')
             || str_contains($line, '品名');
+    }
+
+    /**
+     * @param mixed $value
+     * @param list<string> $default
+     * @return list<string>
+     */
+    private function stringList(mixed $value, array $default): array
+    {
+        if (!is_array($value)) {
+            return $default;
+        }
+
+        $items = array_values(array_filter(
+            array_map(
+                static fn (mixed $item): string => is_scalar($item) ? trim((string) $item) : '',
+                $value
+            ),
+            static fn (string $item): bool => $item !== ''
+        ));
+
+        return $items === [] ? $default : $items;
     }
 }

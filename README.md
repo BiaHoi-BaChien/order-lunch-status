@@ -48,6 +48,25 @@ NOTION_TICKET_DATA_SOURCE_ID=
 - 注文受付メールは、日付で対象レコードを探して `受付済` と受付確認メールURLを更新します。
 - 1件のメールでエラーが出ても、他のメール処理は継続します。
 
+## メール解析設定
+
+Gmail検索条件とGoogleフォーム回答欄の質問文は `.env` で変更できます。未設定の場合は現在の松屋お弁当フォーム向けの既定値を使用します。
+
+```env
+MAIL_ORDER_FROM=forms-receipts-noreply@google.com
+MAIL_ORDER_SUBJECT=フォームにご記入いただきありがとうございます
+MAIL_RECEIPT_SUBJECT=【松屋】お弁当注文受付確認
+MAIL_FIELD_DATE_LABELS=お子様がお弁当を召し上がる日付を記載してください|お弁当を召し上がる日付
+MAIL_FIELD_TICKET_LABELS=お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー|お弁当ナンバー|お弁当番号
+MAIL_FIELD_ITEM_LABELS=品名|注文したお弁当|お弁当の種類|メニュー|アレルギー物質
+MAIL_FIELD_SIZE_LABELS=ライスの量|ご飯の量|サイズ
+MAIL_FIELD_NOTE_LABELS=備考|ご要望
+MAIL_FIELD_CURRY_TYPE_LABELS=カレーの種類
+MAIL_KNOWN_ITEMS=牛めし（A券：牛めし）|キムチ牛めし（B券：定食・丼）|唐揚げ定食（B券：定食・丼）|ふわ玉あんかけ牛めし（B券：定食・丼）|ふわとろあんかけ牛めし（B券：定食・丼）|チキンかつカレー（B券：定食・丼）
+```
+
+複数の質問文や品名候補は `|` 区切りで指定します。`MAIL_ORDER_FROM` を空にすると、注文確認メール検索では送信元条件を付けずに件名と `LOOKBACK_DAYS` だけで検索します。
+
 ## ログ
 
 ログの出力単位は `.env` の `LOG_OUTPUT_UNIT` で制御できます。既定値は `daily` です。

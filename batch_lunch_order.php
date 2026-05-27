@@ -67,7 +67,7 @@ try {
         $config['curl_ca_bundle_path']
     );
 
-    $service = new LunchOrderService($gmail, $notion, new MailParser(), $logger, $config);
+    $service = new LunchOrderService($gmail, $notion, new MailParser($config['mail_parser']), $logger, $config);
     $summary = $service->run();
 
     $logger->info('処理結果: ' . json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
