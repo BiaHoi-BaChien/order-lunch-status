@@ -279,9 +279,9 @@ return [
             '備考',
             'ご要望',
         ]),
-        'curry_type_labels' => envList('MAIL_FIELD_CURRY_TYPE_LABELS', [
+        'note_append_labels' => envList('MAIL_FIELD_NOTE_APPEND_LABELS', envList('MAIL_FIELD_CURRY_TYPE_LABELS', [
             'カレーの種類',
-        ]),
+        ])),
         'known_items' => envList('MAIL_KNOWN_ITEMS', [
             '牛めし（A券：牛めし）',
             'キムチ牛めし（B券：定食・丼）',
@@ -289,6 +289,7 @@ return [
             'ふわ玉あんかけ牛めし（B券：定食・丼）',
             'ふわとろあんかけ牛めし（B券：定食・丼）',
             'チキンかつカレー（B券：定食・丼）',
+            'ソース（味噌）かつ定食（B券：定食・丼）',
         ]),
         'mapped_fields' => array_map(
             static fn (array $mapping): array => [

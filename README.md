@@ -63,13 +63,13 @@ MAIL_FIELD_TICKET_LABELS=お手持ちのお弁当券に記載してある数字4
 MAIL_FIELD_ITEM_LABELS=品名|注文したお弁当|お弁当の種類|メニュー|アレルギー物質
 MAIL_FIELD_SIZE_LABELS=ライスの量|ご飯の量|サイズ
 MAIL_FIELD_NOTE_LABELS=備考|ご要望
-MAIL_FIELD_CURRY_TYPE_LABELS=カレーの種類
-MAIL_KNOWN_ITEMS=牛めし（A券：牛めし）|キムチ牛めし（B券：定食・丼）|唐揚げ定食（B券：定食・丼）|ふわ玉あんかけ牛めし（B券：定食・丼）|ふわとろあんかけ牛めし（B券：定食・丼）|チキンかつカレー（B券：定食・丼）
+MAIL_FIELD_NOTE_APPEND_LABELS=カレーの種類|ソースの種類
+MAIL_KNOWN_ITEMS=牛めし（A券：牛めし）|キムチ牛めし（B券：定食・丼）|唐揚げ定食（B券：定食・丼）|ふわ玉あんかけ牛めし（B券：定食・丼）|ふわとろあんかけ牛めし（B券：定食・丼）|チキンかつカレー（B券：定食・丼）|ソース（味噌）かつ定食（B券：定食・丼）
 MAIL_NOTION_PROPERTY_MAPPINGS_JSON=[]
 MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
-複数の質問文や品名候補は `|` 区切りで指定します。`MAIL_ORDER_FROM` を空にすると、注文確認メール検索では送信元条件を付けずに件名と `LOOKBACK_DAYS` だけで検索します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
+複数の質問文や品名候補は `|` 区切りで指定します。`MAIL_FIELD_NOTE_APPEND_LABELS` に指定した質問項目は、回答がある場合に `質問項目: 回答` の形式で備考へ追記します。`MAIL_ORDER_FROM` を空にすると、注文確認メール検索では送信元条件を付けずに件名と `LOOKBACK_DAYS` だけで検索します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
 
 `GMAIL_PROCESSED_LABEL_NAME` のラベルがGmailに存在しない場合は、初回のラベル付与時に自動作成します。既存の `gmail.readonly` トークンではラベル付与できないため、古い `credentials/gmail_token.json` を削除し、`php gmail_auth.php` を再実行して `gmail.modify` の権限でトークンを作り直してください。
 
