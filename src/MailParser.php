@@ -29,7 +29,7 @@ final class MailParser
         '備考',
         'ご要望',
     ];
-    private const DEFAULT_CURRY_TYPE_LABELS = [
+    private const DEFAULT_NOTE_APPEND_LABELS = [
         'カレーの種類',
     ];
     private const DEFAULT_KNOWN_ITEMS = [
@@ -39,10 +39,11 @@ final class MailParser
         'ふわ玉あんかけ牛めし（B券：定食・丼）',
         'ふわとろあんかけ牛めし（B券：定食・丼）',
         'チキンかつカレー（B券：定食・丼）',
+        'ソース（味噌）かつ定食（B券：定食・丼）',
     ];
 
     /**
-     * @var array{date_labels:list<string>,ticket_labels:list<string>,item_labels:list<string>,size_labels:list<string>,note_labels:list<string>,curry_type_labels:list<string>,known_items:list<string>,mapped_fields:list<array{key:string,mail_labels:list<string>}>}
+     * @var array{date_labels:list<string>,ticket_labels:list<string>,item_labels:list<string>,size_labels:list<string>,note_labels:list<string>,note_append_labels:list<string>,known_items:list<string>,mapped_fields:list<array{key:string,mail_labels:list<string>}>}
      */
     private array $settings;
 
@@ -57,7 +58,7 @@ final class MailParser
             'item_labels' => $this->stringList($settings['item_labels'] ?? null, self::DEFAULT_ITEM_LABELS),
             'size_labels' => $this->stringList($settings['size_labels'] ?? null, self::DEFAULT_SIZE_LABELS),
             'note_labels' => $this->stringList($settings['note_labels'] ?? null, self::DEFAULT_NOTE_LABELS),
-            'curry_type_labels' => $this->stringList($settings['curry_type_labels'] ?? null, self::DEFAULT_CURRY_TYPE_LABELS),
+            'note_append_labels' => $this->stringList($settings['note_append_labels'] ?? null, self::DEFAULT_NOTE_APPEND_LABELS),
             'known_items' => $this->stringList($settings['known_items'] ?? null, self::DEFAULT_KNOWN_ITEMS),
             'mapped_fields' => $this->fieldMappings($settings['mapped_fields'] ?? null),
         ];
@@ -101,9 +102,8 @@ final class MailParser
 
         $noteLabels = $this->settings['note_labels'];
         $note = $this->answerFromMap($htmlAnswers, $noteLabels) ?? ($htmlAnswers !== [] ? '' : ($this->answerFor($text, $noteLabels) ?? ''));
-        $curryType = $this->extractCurryTypeAnswer($text, $htmlAnswers);
-        if ($curryType !== null) {
-            $note = $this->appendNote($note, 'カレーの種類: ' . $curryType);
+        foreach ($this->extractNoteAppendFields($text, $htmlAnswers) as $label => $answer) {
+            $note = $this->appendNote($note, $label . ': ' . $answer);
         }
 
         return [
@@ -531,15 +531,26 @@ final class MailParser
         return '';
     }
 
-    private function extractCurryTypeAnswer(string $text, array $htmlAnswers): ?string
+    /**
+     * @param array<string, string> $htmlAnswers
+     * @return array<string, string>
+     */
+    private function extractNoteAppendFields(string $text, array $htmlAnswers): array
     {
-        $curryTypeLabels = $this->settings['curry_type_labels'];
-        $answer = $this->answerFromMap($htmlAnswers, $curryTypeLabels) ?? $this->answerFor($text, $curryTypeLabels);
-        if ($answer === null) {
-            return null;
+        $fields = [];
+        foreach ($this->settings['note_append_labels'] as $label) {
+            $answer = $this->answerFromMap($htmlAnswers, [$label]) ?? $this->answerFor($text, [$label]);
+            if ($answer === null) {
+                continue;
+            }
+
+            $value = $this->normalizeText($answer);
+            if ($value !== '') {
+                $fields[$label] = $value;
+            }
         }
 
-        return $this->normalizeText($answer);
+        return $fields;
     }
 
     /**

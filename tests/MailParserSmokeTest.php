@@ -7,6 +7,12 @@ require_once __DIR__ . '/../src/MailParser.php';
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 
 $parser = new MailParser();
+$sauceParser = new MailParser([
+    'known_items' => [
+        'ソース（味噌）かつ定食（B券：定食・丼）',
+    ],
+    'note_append_labels' => ['ソースの種類'],
+]);
 $mappedParser = new MailParser([
     'mapped_fields' => [
         [
@@ -182,6 +188,32 @@ $curryOrder = $parser->parseOrderConfirmation([
 assertSame('チキンかつカレー（B券：定食・丼）', $curryOrder['item_name']);
 assertSame('S', $curryOrder['size']);
 assertSame('ネギ抜き、カレーの種類: 甘口（カレー粉由来の辛さがあるため、多少の辛さはあります）', $curryOrder['note']);
+
+
+$sauceHtmlBody = <<<HTML
+<div><h2>お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバーを記載してください。</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">B13495</div></div>
+<div><h2>お子様がお弁当を召し上がる日付を記載してください。</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">5月8日（金）</div></div>
+<div><h2>注文したお弁当</h2></div><div><div role="radio" aria-checked="true" aria-label="ソース（味噌）かつ定食（Ｂ券：定食・丼）"></div></div>
+<div><h2>定食・丼のライスの量</h2></div>
+<div>
+  <div><h2>ソースの種類を選択して下さい。</h2></div>
+  <div><div role="radio" aria-checked="true" aria-label="味噌ソース（八丁味噌使用）"></div></div>
+  <div><h2>ライスの量を選択してください。</h2></div>
+  <div><div role="radio" aria-checked="true" aria-label="M 200ｇ"></div></div>
+</div>
+<div><h2>備考</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">キャベツ少なめ</div></div>
+HTML;
+$sauceOrder = $sauceParser->parseOrderConfirmation([
+    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
+    'payload' => [
+        'mimeType' => 'text/html',
+        'body' => ['data' => base64Url($sauceHtmlBody)],
+    ],
+]);
+
+assertSame('ソース（味噌）かつ定食（B券：定食・丼）', $sauceOrder['item_name']);
+assertSame('M', $sauceOrder['size']);
+assertSame('キャベツ少なめ、ソースの種類: 味噌ソース（八丁味噌使用）', $sauceOrder['note']);
 
 $mappedCurryOrder = $mappedParser->parseOrderConfirmation([
     'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),

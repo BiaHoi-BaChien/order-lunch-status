@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 putenv('MAIL_NOTION_PROPERTY_MAPPINGS_JSON=[{"key":"curry_type","mail_labels":["カレーの種類"],"notion_property":"カレーの種類","notion_type":"select"}]');
 putenv('GMAIL_PROCESSED_LABEL_NAME=order-lunch-status-processed');
+putenv('MAIL_FIELD_NOTE_APPEND_LABELS=カレーの種類|ソースの種類');
 
 $config = require __DIR__ . '/../config.php';
 $mapping = $config['mail_notion_property_mappings'][0] ?? null;
@@ -14,6 +15,7 @@ assertSame('カレーの種類', $mapping['notion_property'] ?? null);
 assertSame('select', $mapping['notion_type'] ?? null);
 assertSame('curry_type', $config['mail_parser']['mapped_fields'][0]['key'] ?? null);
 assertSame('order-lunch-status-processed', $config['gmail_processed_label_name'] ?? null);
+assertSame(['カレーの種類', 'ソースの種類'], $config['mail_parser']['note_append_labels'] ?? null);
 
 echo "Config mapping test passed\n";
 
