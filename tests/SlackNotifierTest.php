@@ -8,7 +8,7 @@ $notifier = new SlackNotifier('https://example.com/webhook', 'Asia/Ho_Chi_Minh')
 $method = new ReflectionMethod(SlackNotifier::class, 'buildMessage');
 
 $message = $method->invoke($notifier, [
-    'initial_created' => 0,
+    'initial_created' => 2,
     'order_confirmation_found' => 5,
     'order_confirmation_success' => 0,
     'order_confirmation_skipped' => 5,
@@ -48,12 +48,18 @@ $message = $method->invoke($notifier, [
 assertContains("直近の注文状況:\n2026/05/11(月) [受付済] 牛めし（A券：牛めし） [S] つゆだく、ネギ抜き", $message);
 assertContains('2026/05/12(火) [注文済] 唐揚げ定食（B券：定食・丼） [S]', $message);
 assertContains('2026/05/13(水) [未注文]', $message);
+assertContains("処理内容:\n- 初期レコード作成: 2件", $message);
+assertContains('- 注文受付メール更新: 1件', $message);
 assertNotContains('お弁当注文状況バッチ 処理結果', $message);
 assertNotContains('注文確認メール: 検索 5 / 成功 0 / スキップ 5', $message);
+assertNotContains('注文確認メール更新: 0件', $message);
 assertNotContains('注文受付メール: 検索 5 / 成功 1 / スキップ 4', $message);
 assertNotContains('エラー: 0', $message);
 
 $errorMessage = $method->invoke($notifier, [
+    'initial_created' => 0,
+    'order_confirmation_success' => 1,
+    'receipt_success' => 0,
     'errors' => 1,
     'error_details' => [
         '注文確認メール処理失敗: message_id=abc123, 該当するチケットが見つかりません: ticket_no=A-001, order_date=2026-05-11',
@@ -71,6 +77,9 @@ $errorMessage = $method->invoke($notifier, [
 ]);
 
 assertContains("直近の注文状況:\n2026/05/11(月) [未注文]", $errorMessage);
+assertContains("処理内容:\n- 注文確認メール更新: 1件", $errorMessage);
+assertNotContains('初期レコード作成: 0件', $errorMessage);
+assertNotContains('注文受付メール更新: 0件', $errorMessage);
 assertContains("エラー内容:\n- 注文確認メール処理失敗: message_id=abc123, 該当するチケットが見つかりません: ticket_no=A-001, order_date=2026-05-11", $errorMessage);
 
 assertSame(false, SlackNotifier::shouldNotifyResult([
