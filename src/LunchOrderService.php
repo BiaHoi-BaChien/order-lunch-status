@@ -32,6 +32,7 @@ final class LunchOrderService
             'receipt_skipped' => 0,
             'receipt_labeled' => 0,
             'errors' => 0,
+            'error_details' => [],
         ];
 
         $summary['initial_created'] = $this->ensureInitialRecords();
@@ -52,7 +53,9 @@ final class LunchOrderService
                 }
             } catch (Throwable $e) {
                 $summary['errors']++;
-                $this->logger->error("注文確認メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}");
+                $errorDetail = "注文確認メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}";
+                $summary['error_details'][] = $errorDetail;
+                $this->logger->error($errorDetail);
             }
         }
 
@@ -71,7 +74,9 @@ final class LunchOrderService
                 }
             } catch (Throwable $e) {
                 $summary['errors']++;
-                $this->logger->error("注文受付メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}");
+                $errorDetail = "注文受付メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}";
+                $summary['error_details'][] = $errorDetail;
+                $this->logger->error($errorDetail);
             }
         }
 
@@ -165,7 +170,7 @@ final class LunchOrderService
 
         $ticket = $this->notion->findTicketByNumber($order['ticket_no']);
         if ($ticket === null || empty($ticket['id'])) {
-            throw new RuntimeException("チケット未登録: ticket_no={$order['ticket_no']}, order_date={$order['date']}");
+            throw new RuntimeException("該当するチケットが見つかりません: ticket_no={$order['ticket_no']}, order_date={$order['date']}");
         }
 
         $date = new DateTimeImmutable($order['date']);

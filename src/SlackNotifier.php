@@ -60,21 +60,7 @@ final class SlackNotifier
      */
     private function buildMessage(array $summary): string
     {
-        $status = ($summary['errors'] ?? 0) > 0 ? 'エラーあり' : '正常終了';
-        $finishedAt = (new DateTimeImmutable('now', new DateTimeZone($this->timezone)))->format('Y-m-d H:i:s');
-
-        $lines = [
-            "お弁当注文状況バッチ 処理結果: {$status}",
-            "終了日時: {$finishedAt}",
-            "初期レコード作成: " . ($summary['initial_created'] ?? 0),
-            "注文確認メール: 検索 " . ($summary['order_confirmation_found'] ?? 0)
-                . " / 成功 " . ($summary['order_confirmation_success'] ?? 0)
-                . " / スキップ " . ($summary['order_confirmation_skipped'] ?? 0),
-            "注文受付メール: 検索 " . ($summary['receipt_found'] ?? 0)
-                . " / 成功 " . ($summary['receipt_success'] ?? 0)
-                . " / スキップ " . ($summary['receipt_skipped'] ?? 0),
-            "エラー: " . ($summary['errors'] ?? 0),
-        ];
+        $lines = [];
 
         if (!empty($summary['recent_orders']) && is_array($summary['recent_orders'])) {
             $lines[] = '直近の注文状況:';
@@ -82,6 +68,23 @@ final class SlackNotifier
                 if (is_array($order)) {
                     $lines[] = $this->formatRecentOrder($order);
                 }
+            }
+        }
+
+        if (((int) ($summary['errors'] ?? 0)) > 0) {
+            if ($lines !== []) {
+                $lines[] = '';
+            }
+            $lines[] = 'エラー内容:';
+            $errorDetails = $summary['error_details'] ?? [];
+            if (is_array($errorDetails) && $errorDetails !== []) {
+                foreach ($errorDetails as $errorDetail) {
+                    if (is_scalar($errorDetail) && (string) $errorDetail !== '') {
+                        $lines[] = '- ' . (string) $errorDetail;
+                    }
+                }
+            } else {
+                $lines[] = '- 詳細不明のエラーが発生しました';
             }
         }
 
