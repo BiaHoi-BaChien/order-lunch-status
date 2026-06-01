@@ -71,6 +71,17 @@ final class SlackNotifier
             }
         }
 
+        $processedLines = $this->processedLines($summary);
+        if ($processedLines !== []) {
+            if ($lines !== []) {
+                $lines[] = '';
+            }
+            $lines[] = '処理内容:';
+            foreach ($processedLines as $processedLine) {
+                $lines[] = '- ' . $processedLine;
+            }
+        }
+
         if (((int) ($summary['errors'] ?? 0)) > 0) {
             if ($lines !== []) {
                 $lines[] = '';
@@ -89,6 +100,31 @@ final class SlackNotifier
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return list<string>
+     */
+    private function processedLines(array $summary): array
+    {
+        $lines = [];
+        $initialCreated = (int) ($summary['initial_created'] ?? 0);
+        if ($initialCreated > 0) {
+            $lines[] = "初期レコード作成: {$initialCreated}件";
+        }
+
+        $orderConfirmationSuccess = (int) ($summary['order_confirmation_success'] ?? 0);
+        if ($orderConfirmationSuccess > 0) {
+            $lines[] = "注文確認メール更新: {$orderConfirmationSuccess}件";
+        }
+
+        $receiptSuccess = (int) ($summary['receipt_success'] ?? 0);
+        if ($receiptSuccess > 0) {
+            $lines[] = "注文受付メール更新: {$receiptSuccess}件";
+        }
+
+        return $lines;
     }
 
     /**
