@@ -16,6 +16,7 @@ $message = $method->invoke($notifier, [
     'receipt_success' => 1,
     'receipt_skipped' => 4,
     'errors' => 0,
+    'error_details' => [],
     'recent_orders' => [
         [
             'date' => '2026-05-11',
@@ -44,12 +45,33 @@ $message = $method->invoke($notifier, [
     ],
 ]);
 
-assertContains('お弁当注文状況バッチ 処理結果: 正常終了', $message);
-assertContains('注文確認メール: 検索 5 / 成功 0 / スキップ 5', $message);
-assertContains('注文受付メール: 検索 5 / 成功 1 / スキップ 4', $message);
 assertContains("直近の注文状況:\n2026/05/11(月) [受付済] 牛めし（A券：牛めし） [S] つゆだく、ネギ抜き", $message);
 assertContains('2026/05/12(火) [注文済] 唐揚げ定食（B券：定食・丼） [S]', $message);
 assertContains('2026/05/13(水) [未注文]', $message);
+assertNotContains('お弁当注文状況バッチ 処理結果', $message);
+assertNotContains('注文確認メール: 検索 5 / 成功 0 / スキップ 5', $message);
+assertNotContains('注文受付メール: 検索 5 / 成功 1 / スキップ 4', $message);
+assertNotContains('エラー: 0', $message);
+
+$errorMessage = $method->invoke($notifier, [
+    'errors' => 1,
+    'error_details' => [
+        '注文確認メール処理失敗: message_id=abc123, 該当するチケットが見つかりません: ticket_no=A-001, order_date=2026-05-11',
+    ],
+    'recent_orders' => [
+        [
+            'date' => '2026-05-11',
+            'weekday' => '月',
+            'status' => '未注文',
+            'item_name' => '',
+            'size' => '',
+            'note' => '',
+        ],
+    ],
+]);
+
+assertContains("直近の注文状況:\n2026/05/11(月) [未注文]", $errorMessage);
+assertContains("エラー内容:\n- 注文確認メール処理失敗: message_id=abc123, 該当するチケットが見つかりません: ticket_no=A-001, order_date=2026-05-11", $errorMessage);
 
 assertSame(false, SlackNotifier::shouldNotifyResult([
     'initial_created' => 0,
@@ -76,6 +98,13 @@ function assertContains(string $expected, string $actual): void
 {
     if (!str_contains($actual, $expected)) {
         throw new RuntimeException('Assertion failed: expected substring=' . $expected . ', actual=' . $actual);
+    }
+}
+
+function assertNotContains(string $unexpected, string $actual): void
+{
+    if (str_contains($actual, $unexpected)) {
+        throw new RuntimeException('Assertion failed: unexpected substring=' . $unexpected . ', actual=' . $actual);
     }
 }
 
