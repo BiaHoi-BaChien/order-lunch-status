@@ -65,6 +65,7 @@ MAIL_FIELD_SIZE_LABELS=ライスの量|ご飯の量|サイズ
 MAIL_FIELD_NOTE_LABELS=備考|ご要望
 MAIL_FIELD_NOTE_APPEND_LABELS=カレーの種類|ソースの種類
 MAIL_KNOWN_ITEMS=牛めし（A券：牛めし）|キムチ牛めし（B券：定食・丼）|唐揚げ定食（B券：定食・丼）|ふわ玉あんかけ牛めし（B券：定食・丼）|ふわとろあんかけ牛めし（B券：定食・丼）|チキンかつカレー（B券：定食・丼）|ソース（味噌）かつ定食（B券：定食・丼）
+MAIL_SETTINGS_PASSWORD=
 MAIL_NOTION_PROPERTY_MAPPINGS_JSON=[]
 MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
@@ -87,6 +88,12 @@ MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
 `notion_type` は `rich_text`, `select`, `title`, `url`, `number`, `checkbox` を指定できます。未指定時は `rich_text` です。
+
+### メール解析設定のWeb編集
+
+`mail_settings.php` をブラウザで開くと、上記のメール解析設定をWeb画面から編集できます。リスト項目は1行1項目で入力し、保存時に `.env` へ `|` 区切りで書き戻します。その他の `.env` 項目は保持します。
+
+公開環境で使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD` を設定してください。未設定の場合、`mail_settings.php` は `localhost` からのアクセスだけを許可します。
 
 ## ログ
 
