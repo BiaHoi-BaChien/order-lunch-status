@@ -1,0 +1,24 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Deploy to Hostinger
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
+        with:
+          host: ${{ secrets.SCP_HOST }}
+          port: ${{ secrets.SCP_PORT }}
+          username: ${{ secrets.SCP_USER }}
+          key: ${{ secrets.SCP_PRIVATE_KEY }}
+          target: /home/u685478147/public_html/public_html/notion_order_lunch
+          source: ".htaccess,.env.example,batch_lunch_order.php,config.php,gmail_auth.php,README.md,LICENSE,credentials/.gitkeep,credentials/.htaccess,logs/.htaccess,src/*.php,src/.htaccess,tests/*.php,tests/.htaccess"
