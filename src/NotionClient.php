@@ -50,7 +50,7 @@ final class NotionClient
         return $this->request('POST', '/pages', [
             'parent' => ['data_source_id' => $this->orderDataSourceId],
             'properties' => [
-                '品名' => ['title' => []],
+                '品名' => ['title' => [['text' => ['content' => '未注文']]]],
                 '日付' => ['date' => ['start' => $date]],
                 '曜日' => ['select' => ['name' => $weekday]],
                 '状況' => ['select' => ['name' => $status]],
