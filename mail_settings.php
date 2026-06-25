@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/src/EnvFileEditor.php';
+require_once __DIR__ . '/src/MailSettingsAuth.php';
 
 session_start();
 
@@ -36,15 +37,12 @@ $defaults = [
 $message = null;
 $error = null;
 $envFileValues = EnvFileEditor::readValues($envPath);
-$envPassword = getenv('MAIL_SETTINGS_PASSWORD');
-$password = is_string($envPassword) && $envPassword !== ''
-    ? $envPassword
-    : ($envFileValues['MAIL_SETTINGS_PASSWORD'] ?? '');
-$passwordConfigured = is_string($password) && $password !== '';
+$auth = MailSettingsAuth::fromEnvironment($envFileValues);
+$passwordConfigured = $auth->isConfigured();
 
 if (!isAllowedClient($passwordConfigured)) {
     http_response_code(403);
-    echo 'MAIL_SETTINGS_PASSWORD が未設定のため、localhost 以外からは利用できません。';
+    echo 'MAIL_SETTINGS_PASSWORD_HASH が未設定のため、localhost 以外からは利用できません。';
     exit;
 }
 
@@ -55,7 +53,7 @@ if (empty($_SESSION['mail_settings_csrf'])) {
 if ($passwordConfigured && !($_SESSION['mail_settings_authenticated'] ?? false)) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login') {
         verifyCsrf((string) ($_POST['csrf'] ?? ''), (string) $_SESSION['mail_settings_csrf']);
-        if (hash_equals((string) $password, (string) ($_POST['password'] ?? ''))) {
+        if ($auth->verify((string) ($_POST['password'] ?? ''))) {
             $_SESSION['mail_settings_authenticated'] = true;
             header('Location: ' . requestPath());
             exit;
