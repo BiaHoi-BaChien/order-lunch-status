@@ -21,18 +21,18 @@ try {
     EnvFileEditor::updateValues($path, [
         'MAIL_ORDER_FROM' => '',
         'MAIL_FIELD_ITEM_LABELS' => EnvFileEditor::listToEnv(['品名', '注文したお弁当', '']),
-        'MAIL_SETTINGS_PASSWORD' => 'pass#word',
+        'MAIL_SETTINGS_TEST_VALUE' => 'pass#word',
     ]);
 
     $updated = EnvFileEditor::readValues($path);
     assertSame('secret_xxx', $updated['NOTION_API_KEY'] ?? null);
     assertSame('', $updated['MAIL_ORDER_FROM'] ?? null);
     assertSame('品名|注文したお弁当', $updated['MAIL_FIELD_ITEM_LABELS'] ?? null);
-    assertSame('pass#word', $updated['MAIL_SETTINGS_PASSWORD'] ?? null);
+    assertSame('pass#word', $updated['MAIL_SETTINGS_TEST_VALUE'] ?? null);
 
     $content = (string) file_get_contents($path);
     assertContains('NOTION_API_KEY=secret_xxx', $content);
-    assertContains('MAIL_SETTINGS_PASSWORD="pass#word"', $content);
+    assertContains('MAIL_SETTINGS_TEST_VALUE="pass#word"', $content);
 } finally {
     if (is_file($path)) {
         unlink($path);
