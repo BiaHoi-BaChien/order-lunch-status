@@ -98,7 +98,7 @@ MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 パスワードハッシュは以下のように生成できます。入力したパスワードそのものは `.env` に保存せず、出力されたハッシュ値だけを `MAIL_SETTINGS_PASSWORD_HASH` に設定します。
 
 ```powershell
-php -r 'fwrite(STDERR, "Password: "); $p = trim(fgets(STDIN)); echo password_hash($p, PASSWORD_DEFAULT), PHP_EOL;'
+php -r "fwrite(STDERR, 'Password: '); echo password_hash(trim(fgets(STDIN)), PASSWORD_DEFAULT), PHP_EOL;"
 ```
 
 ```bash
