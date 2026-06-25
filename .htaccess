@@ -1,5 +1,6 @@
 Options -Indexes
 
+<FilesMatch "^(?!mail_settings\.php$).+">
 <IfModule mod_authz_core.c>
     Require all denied
 </IfModule>
@@ -7,3 +8,4 @@ Options -Indexes
     Order allow,deny
     Deny from all
 </IfModule>
+</FilesMatch>
