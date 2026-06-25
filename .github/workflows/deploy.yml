@@ -21,4 +21,4 @@ jobs:
           username: ${{ secrets.SCP_USER }}
           key: ${{ secrets.SCP_PRIVATE_KEY }}
           target: /home/u685478147/public_html/public_html/notion_order_lunch
-          source: ".htaccess,.env.example,batch_lunch_order.php,config.php,gmail_auth.php,README.md,LICENSE,credentials/.gitkeep,credentials/.htaccess,logs/.htaccess,src/*.php,src/.htaccess,tests/*.php,tests/.htaccess"
+          source: ".htaccess,.env.example,batch_lunch_order.php,config.php,gmail_auth.php,mail_settings.php,README.md,LICENSE,credentials/.gitkeep,credentials/.htaccess,logs/.htaccess,src/*.php,src/.htaccess,tests/*.php,tests/.htaccess"
