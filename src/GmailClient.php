@@ -171,7 +171,9 @@ final class GmailClient
                 'grant_type' => 'refresh_token',
             ]),
         ]);
-        CurlSupport::applyCaBundle($ch, $this->caBundlePath);
+        if ($this->caBundlePath !== null) {
+            curl_setopt($ch, CURLOPT_CAINFO, $this->caBundlePath);
+        }
         $body = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error = curl_error($ch);
@@ -224,23 +226,6 @@ final class GmailClient
     }
 
     /**
-     * @param array<string, mixed> $data
-     */
-    private function writeJsonFile(string $path, array $data): void
-    {
-        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        if ($json === false) {
-            throw new RuntimeException("JSONファイルを生成できません: {$path}");
-        }
-
-        if (file_put_contents($path, $json . PHP_EOL, LOCK_EX) === false) {
-            throw new RuntimeException("JSONファイルを書き込めません: {$path}");
-        }
-
-        @chmod($path, 0600);
-    }
-
-    /**
      * @return array{status:int,body:string}
      */
     private function curlJson(string $method, string $url, array $headers, ?array $payload): array
@@ -251,7 +236,9 @@ final class GmailClient
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_HTTPHEADER => array_merge($headers, ['Content-Type: application/json']),
         ]);
-        CurlSupport::applyCaBundle($ch, $this->caBundlePath);
+        if ($this->caBundlePath !== null) {
+            curl_setopt($ch, CURLOPT_CAINFO, $this->caBundlePath);
+        }
         if ($payload !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         }

@@ -112,7 +112,9 @@ final class NotionClient
             ],
             CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
-        CurlSupport::applyCaBundle($ch, $this->caBundlePath);
+        if ($this->caBundlePath !== null) {
+            curl_setopt($ch, CURLOPT_CAINFO, $this->caBundlePath);
+        }
 
         $body = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);

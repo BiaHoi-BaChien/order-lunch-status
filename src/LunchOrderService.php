@@ -10,7 +10,6 @@ final class LunchOrderService
         private readonly GmailClient $gmail,
         private readonly NotionClient $notion,
         private readonly MailParser $parser,
-        private readonly NotionPropertyPayloadBuilder $propertyPayloadBuilder,
         private readonly Logger $logger,
         private readonly array $config
     ) {
@@ -185,7 +184,7 @@ final class LunchOrderService
             '注文確認メール' => ['url' => $url],
             'お弁当チケット' => ['relation' => [['id' => (string) $ticket['id']]]],
         ];
-        $mappedProperties = $this->propertyPayloadBuilder->build(
+        $mappedProperties = $this->mappedProperties(
             $this->config['mail_notion_property_mappings'] ?? [],
             $order['mapped_fields'] ?? []
         );
@@ -274,6 +273,47 @@ final class LunchOrderService
     private function weekday(DateTimeImmutable $date): string
     {
         return self::WEEKDAYS[(int) $date->format('w')];
+    }
+
+    private function mappedProperties(array $mappings, array $fields): array
+    {
+        $properties = [];
+        foreach ($mappings as $mapping) {
+            $key = (string) ($mapping['key'] ?? '');
+            $property = trim((string) ($mapping['notion_property'] ?? ''));
+            $type = strtolower(trim((string) ($mapping['notion_type'] ?? 'rich_text')));
+            $value = trim((string) ($fields[$key] ?? ''));
+            if ($property === '' || $value === '') {
+                continue;
+            }
+
+            $properties[$property] = $this->propertyPayload($type, $value);
+        }
+
+        return $properties;
+    }
+
+    private function propertyPayload(string $type, string $value): array
+    {
+        return match ($type) {
+            'title' => ['title' => [['text' => ['content' => $value]]]],
+            'select' => ['select' => ['name' => $value]],
+            'url' => ['url' => $value],
+            'number' => ['number' => $this->numberValue($value)],
+            'checkbox' => ['checkbox' => in_array(strtolower($value), ['1', 'true', 'yes', 'on', 'checked', 'はい', 'あり'], true)],
+            default => ['rich_text' => [['text' => ['content' => $value]]]],
+        };
+    }
+
+    private function numberValue(string $value): int|float
+    {
+        $normalized = str_replace(',', '', mb_convert_kana($value, 'n', 'UTF-8'));
+        if (!is_numeric($normalized)) {
+            throw new RuntimeException("Notion number propertyに変換できません: {$value}");
+        }
+
+        $number = (float) $normalized;
+        return floor($number) === $number ? (int) $number : $number;
     }
 
     private function selectName(array $page, string $property): ?string
