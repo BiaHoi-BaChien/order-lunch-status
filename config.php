@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/src/MailParser.php';
+
 function loadEnvFile(string $path): void
 {
     if (!is_file($path)) {
@@ -254,43 +256,13 @@ return [
     'mail_receipt_subject' => $mailReceiptSubject,
     'gmail_processed_label_name' => $gmailProcessedLabelName,
     'mail_parser' => [
-        'date_labels' => envList('MAIL_FIELD_DATE_LABELS', [
-            'お子様がお弁当を召し上がる日付を記載してください',
-            'お弁当を召し上がる日付',
-        ]),
-        'ticket_labels' => envList('MAIL_FIELD_TICKET_LABELS', [
-            'お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー',
-            'お弁当ナンバー',
-            'お弁当番号',
-        ]),
-        'item_labels' => envList('MAIL_FIELD_ITEM_LABELS', [
-            '品名',
-            '注文したお弁当',
-            'お弁当の種類',
-            'メニュー',
-            'アレルギー物質',
-        ]),
-        'size_labels' => envList('MAIL_FIELD_SIZE_LABELS', [
-            'ライスの量',
-            'ご飯の量',
-            'サイズ',
-        ]),
-        'note_labels' => envList('MAIL_FIELD_NOTE_LABELS', [
-            '備考',
-            'ご要望',
-        ]),
-        'note_append_labels' => envList('MAIL_FIELD_NOTE_APPEND_LABELS', envList('MAIL_FIELD_CURRY_TYPE_LABELS', [
-            'カレーの種類',
-        ])),
-        'known_items' => envList('MAIL_KNOWN_ITEMS', [
-            '牛めし（A券：牛めし）',
-            'キムチ牛めし（B券：定食・丼）',
-            '唐揚げ定食（B券：定食・丼）',
-            'ふわ玉あんかけ牛めし（B券：定食・丼）',
-            'ふわとろあんかけ牛めし（B券：定食・丼）',
-            'チキンかつカレー（B券：定食・丼）',
-            'ソース（味噌）かつ定食（B券：定食・丼）',
-        ]),
+        'date_labels' => envList('MAIL_FIELD_DATE_LABELS', MailParser::DEFAULT_DATE_LABELS),
+        'ticket_labels' => envList('MAIL_FIELD_TICKET_LABELS', MailParser::DEFAULT_TICKET_LABELS),
+        'item_labels' => envList('MAIL_FIELD_ITEM_LABELS', MailParser::DEFAULT_ITEM_LABELS),
+        'size_labels' => envList('MAIL_FIELD_SIZE_LABELS', MailParser::DEFAULT_SIZE_LABELS),
+        'note_labels' => envList('MAIL_FIELD_NOTE_LABELS', MailParser::DEFAULT_NOTE_LABELS),
+        'note_append_labels' => envList('MAIL_FIELD_NOTE_APPEND_LABELS', envList('MAIL_FIELD_CURRY_TYPE_LABELS', MailParser::DEFAULT_NOTE_APPEND_LABELS)),
+        'known_items' => envList('MAIL_KNOWN_ITEMS', MailParser::DEFAULT_KNOWN_ITEMS),
         'mapped_fields' => array_map(
             static fn (array $mapping): array => [
                 'key' => $mapping['key'],

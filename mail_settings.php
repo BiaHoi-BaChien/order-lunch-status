@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/src/EnvFileEditor.php';
 require_once __DIR__ . '/src/MailSettingsAuth.php';
+require_once __DIR__ . '/src/MailParser.php';
 
 session_start();
 
@@ -25,13 +26,13 @@ $defaults = [
     'MAIL_ORDER_FROM' => 'forms-receipts-noreply@google.com',
     'MAIL_ORDER_SUBJECT' => 'フォームにご記入いただきありがとうございます',
     'MAIL_RECEIPT_SUBJECT' => '【松屋】お弁当注文受付確認',
-    'MAIL_FIELD_DATE_LABELS' => 'お子様がお弁当を召し上がる日付を記載してください|お弁当を召し上がる日付',
-    'MAIL_FIELD_TICKET_LABELS' => 'お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー|お弁当ナンバー|お弁当番号',
-    'MAIL_FIELD_ITEM_LABELS' => '品名|注文したお弁当|お弁当の種類|メニュー|アレルギー物質',
-    'MAIL_FIELD_SIZE_LABELS' => 'ライスの量|ご飯の量|サイズ',
-    'MAIL_FIELD_NOTE_LABELS' => '備考|ご要望',
-    'MAIL_FIELD_NOTE_APPEND_LABELS' => 'カレーの種類|ソースの種類',
-    'MAIL_KNOWN_ITEMS' => '牛めし（A券：牛めし）|キムチ牛めし（B券：定食・丼）|唐揚げ定食（B券：定食・丼）|ふわ玉あんかけ牛めし（B券：定食・丼）|ふわとろあんかけ牛めし（B券：定食・丼）|チキンかつカレー（B券：定食・丼）|ソース（味噌）かつ定食（B券：定食・丼）',
+    'MAIL_FIELD_DATE_LABELS' => implode('|', MailParser::DEFAULT_DATE_LABELS),
+    'MAIL_FIELD_TICKET_LABELS' => implode('|', MailParser::DEFAULT_TICKET_LABELS),
+    'MAIL_FIELD_ITEM_LABELS' => implode('|', MailParser::DEFAULT_ITEM_LABELS),
+    'MAIL_FIELD_SIZE_LABELS' => implode('|', MailParser::DEFAULT_SIZE_LABELS),
+    'MAIL_FIELD_NOTE_LABELS' => implode('|', MailParser::DEFAULT_NOTE_LABELS),
+    'MAIL_FIELD_NOTE_APPEND_LABELS' => implode('|', MailParser::DEFAULT_NOTE_APPEND_LABELS),
+    'MAIL_KNOWN_ITEMS' => implode('|', MailParser::DEFAULT_KNOWN_ITEMS),
 ];
 
 $message = null;

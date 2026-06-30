@@ -4,35 +4,35 @@ declare(strict_types=1);
 
 final class MailParser
 {
-    private const DEFAULT_DATE_LABELS = [
+    public const DEFAULT_DATE_LABELS = [
         'お子様がお弁当を召し上がる日付を記載してください',
         'お弁当を召し上がる日付',
     ];
-    private const DEFAULT_TICKET_LABELS = [
+    public const DEFAULT_TICKET_LABELS = [
         'お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー',
         'お弁当ナンバー',
         'お弁当番号',
     ];
-    private const DEFAULT_ITEM_LABELS = [
+    public const DEFAULT_ITEM_LABELS = [
         '品名',
         '注文したお弁当',
         'お弁当の種類',
         'メニュー',
         'アレルギー物質',
     ];
-    private const DEFAULT_SIZE_LABELS = [
+    public const DEFAULT_SIZE_LABELS = [
         'ライスの量',
         'ご飯の量',
         'サイズ',
     ];
-    private const DEFAULT_NOTE_LABELS = [
+    public const DEFAULT_NOTE_LABELS = [
         '備考',
         'ご要望',
     ];
-    private const DEFAULT_NOTE_APPEND_LABELS = [
+    public const DEFAULT_NOTE_APPEND_LABELS = [
         'カレーの種類',
     ];
-    private const DEFAULT_KNOWN_ITEMS = [
+    public const DEFAULT_KNOWN_ITEMS = [
         '牛めし（A券：牛めし）',
         'キムチ牛めし（B券：定食・丼）',
         '唐揚げ定食（B券：定食・丼）',
@@ -287,27 +287,6 @@ final class MailParser
         foreach ($node->getElementsByTagName('div') as $div) {
             if (strtolower((string) $div->getAttribute('role')) === 'checkbox'
                 && strtolower((string) $div->getAttribute('aria-checked')) === 'true') {
-                $selected[] = $this->controlLabel($div);
-            }
-        }
-
-        $selected = array_values(array_filter(array_map(
-            fn (?string $value): ?string => $value === null ? null : $this->normalizeMenuText($this->normalizeText($value)),
-            $selected
-        ), fn (?string $value): bool => $value !== null && $value !== ''));
-
-        return $selected === [] ? null : implode('、', array_unique($selected));
-    }
-
-    private function selectedControlTextInNode(DOMElement $node): ?string
-    {
-        $selected = [];
-        if ($this->isCheckedControl($node)) {
-            $selected[] = $this->controlLabel($node);
-        }
-
-        foreach ($node->getElementsByTagName('div') as $div) {
-            if ($this->isCheckedControl($div)) {
                 $selected[] = $this->controlLabel($div);
             }
         }

@@ -3,10 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/src/Logger.php';
-require_once __DIR__ . '/src/CurlSupport.php';
 require_once __DIR__ . '/src/GmailClient.php';
 require_once __DIR__ . '/src/NotionClient.php';
-require_once __DIR__ . '/src/NotionPropertyPayloadBuilder.php';
 require_once __DIR__ . '/src/MailParser.php';
 require_once __DIR__ . '/src/LunchOrderService.php';
 require_once __DIR__ . '/src/SlackNotifier.php';
@@ -68,7 +66,7 @@ try {
         $config['curl_ca_bundle_path']
     );
 
-    $service = new LunchOrderService($gmail, $notion, new MailParser($config['mail_parser']), new NotionPropertyPayloadBuilder(), $logger, $config);
+    $service = new LunchOrderService($gmail, $notion, new MailParser($config['mail_parser']), $logger, $config);
     $summary = $service->run();
 
     $logger->info('処理結果: ' . json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));

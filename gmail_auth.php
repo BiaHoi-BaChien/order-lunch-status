@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
-require_once __DIR__ . '/src/CurlSupport.php';
-
 try {
     $config = require __DIR__ . '/config.php';
     date_default_timezone_set($config['timezone']);
@@ -167,7 +165,9 @@ function exchangeCodeForToken(array $client, string $code, string $redirectUri, 
             'redirect_uri' => $redirectUri,
         ], '', '&', PHP_QUERY_RFC3986),
     ]);
-    CurlSupport::applyCaBundle($ch, $caBundlePath);
+    if ($caBundlePath !== null) {
+        curl_setopt($ch, CURLOPT_CAINFO, $caBundlePath);
+    }
 
     $body = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);

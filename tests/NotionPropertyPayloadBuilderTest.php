@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/NotionPropertyPayloadBuilder.php';
+require_once __DIR__ . '/../src/LunchOrderService.php';
 
-$builder = new NotionPropertyPayloadBuilder();
+$service = (new ReflectionClass(LunchOrderService::class))->newInstanceWithoutConstructor();
+$method = new ReflectionMethod(LunchOrderService::class, 'mappedProperties');
+$method->setAccessible(true);
 
-$payload = $builder->build(
+$payload = $method->invoke(
+    $service,
     [
         [
             'key' => 'curry_type',
@@ -35,7 +38,7 @@ assertSame(['select' => ['name' => '甘口']], $payload['カレーの種類']);
 assertSame(['number' => 1200], $payload['金額']);
 assertSame(false, array_key_exists('空欄', $payload));
 
-echo "NotionPropertyPayloadBuilder test passed\n";
+echo "mappedProperties test passed\n";
 
 function assertSame(mixed $expected, mixed $actual): void
 {
