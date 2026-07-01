@@ -6,6 +6,7 @@ require_once __DIR__ . '/src/EnvFileEditor.php';
 require_once __DIR__ . '/src/MailSettingsAuth.php';
 
 session_start();
+header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
 
 $envPath = __DIR__ . '/.env';
 $settings = [
@@ -187,6 +188,7 @@ function renderHeader(string $title): void
 {
     echo '<!doctype html><html lang="ja"><head><meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">';
     echo '<title>' . h($title) . '</title>';
     echo '<style>
         body{margin:0;background:#f6f7f9;color:#1f2933;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}

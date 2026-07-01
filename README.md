@@ -95,6 +95,8 @@ MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 
 公開環境で使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD_HASH` を設定してください。未設定の場合、`mail_settings.php` は `localhost` からのアクセスだけを許可します。
 
+このプロジェクトをWebサーバーのDocumentRoot配下に設置する場合は、検索エンジンやAIクローラーに発見されにくくするため、同梱の `.htaccess` と `robots.txt` も配置してください。`.htaccess` は `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex` を返し、`robots.txt` は全クローラーに全パスのクロール拒否を通知します。これは公開URLを知っている利用者のアクセス制御ではないため、`mail_settings.php` には必ずパスワードを設定してください。
+
 パスワードハッシュは以下のように生成できます。入力したパスワードそのものは `.env` に保存せず、出力されたハッシュ値だけを `MAIL_SETTINGS_PASSWORD_HASH` に設定します。
 
 ```powershell

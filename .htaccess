@@ -1,6 +1,10 @@
 Options -Indexes
 
-<FilesMatch "^(?!mail_settings\.php$).+">
+<IfModule mod_headers.c>
+    Header set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
+</IfModule>
+
+<FilesMatch "^(?!(mail_settings\.php|robots\.txt)$).+">
 <IfModule mod_authz_core.c>
     Require all denied
 </IfModule>
