@@ -82,6 +82,22 @@ assertNotContains('初期レコード作成: 0件', $errorMessage);
 assertNotContains('注文受付メール更新: 0件', $errorMessage);
 assertContains("エラー内容:\n- 注文確認メール処理失敗: message_id=abc123, 該当するチケットが見つかりません: ticket_no=A-001, order_date=2026-05-11", $errorMessage);
 
+$escapedMessage = $method->invoke($notifier, [
+    'errors' => 1,
+    'error_details' => ['<@U123> & <!channel>'],
+    'recent_orders' => [[
+        'date' => '2026-05-11',
+        'weekday' => '<月>',
+        'status' => '<!here>',
+        'item_name' => '<script>',
+        'size' => 'S&L',
+        'note' => '<@U456>',
+    ]],
+]);
+assertContains('&lt;@U123&gt; &amp; &lt;!channel&gt;', $escapedMessage);
+assertContains('(&lt;月&gt;) [&lt;!here&gt;] &lt;script&gt; [S&amp;L] &lt;@U456&gt;', $escapedMessage);
+assertNotContains('<!channel>', $escapedMessage);
+
 assertSame(false, SlackNotifier::shouldNotifyResult([
     'initial_created' => 0,
     'order_confirmation_success' => 0,

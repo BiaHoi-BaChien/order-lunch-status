@@ -13,6 +13,7 @@ $envPath = __DIR__ . '/.env';
 $settings = [
     'MAIL_ORDER_FROM' => ['label' => '注文確認メールの送信元', 'type' => 'text'],
     'MAIL_ORDER_SUBJECT' => ['label' => '注文確認メールの件名', 'type' => 'text'],
+    'MAIL_RECEIPT_FROM' => ['label' => '受付確認メールの送信元', 'type' => 'text'],
     'MAIL_RECEIPT_SUBJECT' => ['label' => '受付確認メールの件名', 'type' => 'text'],
     'MAIL_FIELD_DATE_LABELS' => ['label' => '日付欄の質問文', 'type' => 'list'],
     'MAIL_FIELD_TICKET_LABELS' => ['label' => 'お弁当番号欄の質問文', 'type' => 'list'],
@@ -26,6 +27,7 @@ $settings = [
 $defaults = [
     'MAIL_ORDER_FROM' => 'forms-receipts-noreply@google.com',
     'MAIL_ORDER_SUBJECT' => 'フォームにご記入いただきありがとうございます',
+    'MAIL_RECEIPT_FROM' => '',
     'MAIL_RECEIPT_SUBJECT' => '【松屋】お弁当注文受付確認',
     'MAIL_FIELD_DATE_LABELS' => implode('|', MailParser::DEFAULT_DATE_LABELS),
     'MAIL_FIELD_TICKET_LABELS' => implode('|', MailParser::DEFAULT_TICKET_LABELS),
@@ -42,9 +44,9 @@ $envFileValues = EnvFileEditor::readValues($envPath);
 $auth = MailSettingsAuth::fromEnvironment($envFileValues);
 $passwordConfigured = $auth->isConfigured();
 
-if (!isAllowedClient($passwordConfigured)) {
-    http_response_code(403);
-    echo 'MAIL_SETTINGS_PASSWORD_HASH が未設定のため、localhost 以外からは利用できません。';
+if (!$passwordConfigured) {
+    http_response_code(503);
+    echo 'MAIL_SETTINGS_PASSWORD_HASH を設定するまで、この画面は利用できません。';
     exit;
 }
 
@@ -56,12 +58,17 @@ if ($passwordConfigured && !($_SESSION['mail_settings_authenticated'] ?? false))
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login') {
         verifyCsrf((string) ($_POST['csrf'] ?? ''), (string) $_SESSION['mail_settings_csrf']);
         if ($auth->verify((string) ($_POST['password'] ?? ''))) {
-            $_SESSION['mail_settings_authenticated'] = true;
-            header('Location: ' . requestPath());
-            exit;
+            if (!session_regenerate_id(true)) {
+                http_response_code(503);
+                $error = 'ログインセッションを更新できません。時間をおいて再試行してください。';
+            } else {
+                $_SESSION['mail_settings_authenticated'] = true;
+                header('Location: ' . requestPath());
+                exit;
+            }
+        } else {
+            $error = 'パスワードが正しくありません。';
         }
-
-        $error = 'パスワードが正しくありません。';
     }
 
     renderLogin((string) $_SESSION['mail_settings_csrf'], $error);
@@ -99,19 +106,9 @@ try {
 
 renderSettings($settings, $values, (string) $_SESSION['mail_settings_csrf'], $message, $error);
 
-function isAllowedClient(bool $passwordConfigured): bool
-{
-    if ($passwordConfigured) {
-        return true;
-    }
-
-    $remote = $_SERVER['REMOTE_ADDR'] ?? '';
-    return in_array($remote, ['127.0.0.1', '::1', ''], true);
-}
-
 function requestPath(): string
 {
-    return strtok((string) ($_SERVER['REQUEST_URI'] ?? 'mail_settings.php'), '?') ?: 'mail_settings.php';
+    return 'mail_settings.php';
 }
 
 function verifyCsrf(string $posted, string $expected): void

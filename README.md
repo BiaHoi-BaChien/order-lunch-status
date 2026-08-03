@@ -48,6 +48,8 @@ NOTION_TICKET_DATA_SOURCE_ID=
 - 注文確認メールは、対象日の状況が `注文済` または `受付済` ならスキップします。
 - 注文受付メールは、日付で対象レコードを探して `受付済` と受付確認メールURLを更新します。
 - 1件のメールでエラーが出ても、他のメール処理は継続します。
+- 1回の起動で処理対象にするGmailメッセージは `GMAIL_MAX_MESSAGES_PER_RUN`（既定100件）までに制限します。
+- 同じ設置先でバッチが重複起動した場合、後から起動した処理は安全にスキップします。
 
 ## メール解析設定
 
@@ -56,6 +58,7 @@ Gmail検索条件とGoogleフォーム回答欄の質問文は `.env` で変更�
 ```env
 MAIL_ORDER_FROM=forms-receipts-noreply@google.com
 MAIL_ORDER_SUBJECT=フォームにご記入いただきありがとうございます
+MAIL_RECEIPT_FROM=実際の受付確認メールの送信元アドレス
 MAIL_RECEIPT_SUBJECT=【松屋】お弁当注文受付確認
 GMAIL_PROCESSED_LABEL_NAME=order-lunch-status-processed
 MAIL_FIELD_DATE_LABELS=お子様がお弁当を召し上がる日付を記載してください|お弁当を召し上がる日付
@@ -70,7 +73,7 @@ MAIL_NOTION_PROPERTY_MAPPINGS_JSON=[]
 MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
-複数の質問文や品名候補は `|` 区切りで指定します。`MAIL_FIELD_NOTE_APPEND_LABELS` に指定した質問項目は、回答がある場合に `質問項目: 回答` の形式で備考へ追記します。`MAIL_ORDER_FROM` を空にすると、注文確認メール検索では送信元条件を付けずに件名と `LOOKBACK_DAYS` だけで検索します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
+複数の質問文や品名候補は `|` 区切りで指定します。`MAIL_FIELD_NOTE_APPEND_LABELS` に指定した質問項目は、回答がある場合に `質問項目: 回答` の形式で備考へ追記します。`MAIL_ORDER_FROM` と `MAIL_RECEIPT_FROM` は必須で、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
 
 `GMAIL_PROCESSED_LABEL_NAME` のラベルがGmailに存在しない場合は、初回のラベル付与時に自動作成します。既存の `gmail.readonly` トークンではラベル付与できないため、古い `credentials/gmail_token.json` を削除し、`php gmail_auth.php` を再実行して `gmail.modify` の権限でトークンを作り直してください。
 
@@ -93,7 +96,7 @@ MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 
 `mail_settings.php` をブラウザで開くと、上記のメール解析設定をWeb画面から編集できます。リスト項目は1行1項目で入力し、保存時に `.env` へ `|` 区切りで書き戻します。その他の `.env` 項目は保持します。
 
-公開環境で使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD_HASH` を設定してください。未設定の場合、`mail_settings.php` は `localhost` からのアクセスだけを許可します。
+`mail_settings.php` を使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD_HASH` を設定してください。未設定の場合はlocalhostを含むすべてのアクセスを拒否します。
 
 このプロジェクトをWebサーバーのDocumentRoot配下に設置する場合は、検索エンジンやAIクローラーに発見されにくくするため、同梱の `.htaccess` と `robots.txt` も配置してください。`.htaccess` は `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex` を返し、`robots.txt` は全クローラーに全パスのクロール拒否を通知します。これは公開URLを知っている利用者のアクセス制御ではないため、`mail_settings.php` には必ずパスワードを設定してください。
 
@@ -128,6 +131,12 @@ Hostinger側のcronは毎時起動にし、PHP側で実行してよい時間帯�
 RUN_WINDOW_ENABLED=true
 RUN_WINDOW_START_HOUR=9
 RUN_WINDOW_END_HOUR=23
+```
+
+1回あたりのGmail処理件数は次で制限できます（1〜1000件）。大量の未処理メールがある場合も、次回以降の起動で続きを処理します。
+
+```env
+GMAIL_MAX_MESSAGES_PER_RUN=100
 ```
 
 ## Slack通知
