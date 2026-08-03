@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/src/EnvFileEditor.php';
 require_once __DIR__ . '/src/MailSettingsAuth.php';
+require_once __DIR__ . '/src/MailSettingsLoginLimiter.php';
 require_once __DIR__ . '/src/MailParser.php';
 
 session_start();
@@ -57,17 +58,36 @@ if (empty($_SESSION['mail_settings_csrf'])) {
 if ($passwordConfigured && !($_SESSION['mail_settings_authenticated'] ?? false)) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login') {
         verifyCsrf((string) ($_POST['csrf'] ?? ''), (string) $_SESSION['mail_settings_csrf']);
-        if ($auth->verify((string) ($_POST['password'] ?? ''))) {
-            if (!session_regenerate_id(true)) {
-                http_response_code(503);
-                $error = 'ログインセッションを更新できません。時間をおいて再試行してください。';
-            } else {
+        try {
+            $limiter = new MailSettingsLoginLimiter(
+                sys_get_temp_dir() . '/order-lunch-status-mail-settings-login-rate-limit.json'
+            );
+            $clientKey = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+            $retryAfter = $limiter->retryAfter($clientKey);
+
+            if ($retryAfter === 0 && $auth->verify((string) ($_POST['password'] ?? ''))) {
+                $limiter->recordSuccess($clientKey);
+                if (!session_regenerate_id(true)) {
+                    throw new RuntimeException('ログインセッションを更新できません');
+                }
                 $_SESSION['mail_settings_authenticated'] = true;
                 header('Location: ' . requestPath());
                 exit;
             }
-        } else {
-            $error = 'パスワードが正しくありません。';
+
+            if ($retryAfter === 0) {
+                $retryAfter = $limiter->recordFailure($clientKey);
+                $error = 'パスワードが正しくありません。';
+            } else {
+                $error = 'ログイン試行回数が多すぎます。';
+            }
+
+            http_response_code(429);
+            header('Retry-After: ' . $retryAfter);
+            $error .= " {$retryAfter} 秒後に再試行してください。";
+        } catch (Throwable) {
+            http_response_code(503);
+            $error = 'ログインを一時的に利用できません。時間をおいて再試行してください。';
         }
     }
 
