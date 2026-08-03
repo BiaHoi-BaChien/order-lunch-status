@@ -225,6 +225,7 @@ $runWindowStartHour = (int) envValue('RUN_WINDOW_START_HOUR', '9');
 $runWindowEndHour = (int) envValue('RUN_WINDOW_END_HOUR', '23');
 $mailOrderFrom = envString('MAIL_ORDER_FROM', 'forms-receipts-noreply@google.com');
 $mailOrderSubject = envValue('MAIL_ORDER_SUBJECT', 'フォームにご記入いただきありがとうございます');
+$mailReceiptFrom = envString('MAIL_RECEIPT_FROM', '');
 $mailReceiptSubject = envValue('MAIL_RECEIPT_SUBJECT', '【松屋】お弁当注文受付確認');
 $gmailProcessedLabelName = envString('GMAIL_PROCESSED_LABEL_NAME', 'order-lunch-status-processed');
 $mailNotionPropertyMappings = envMailNotionPropertyMappings('MAIL_NOTION_PROPERTY_MAPPINGS_JSON', 'MAIL_NOTION_PROPERTY_MAPPINGS_PATH');
@@ -239,6 +240,7 @@ return [
     'gmail_user_id' => envValue('GMAIL_USER_ID', 'me'),
     'timezone' => $timezone,
     'lookback_days' => envPositiveInt('LOOKBACK_DAYS', 7, 100),
+    'gmail_max_messages_per_run' => envPositiveInt('GMAIL_MAX_MESSAGES_PER_RUN', 100, 1000),
     'initial_record_days' => envPositiveInt('INITIAL_RECORD_DAYS', 30, 100),
     'shop_name' => envValue('SHOP_NAME', '松屋'),
     'gmail_credentials_path' => projectPath(envValue('GMAIL_CREDENTIALS_PATH', 'credentials/gmail_credentials.json')),
@@ -253,6 +255,7 @@ return [
     'run_window_end_hour' => $runWindowEndHour,
     'mail_order_from' => $mailOrderFrom,
     'mail_order_subject' => $mailOrderSubject,
+    'mail_receipt_from' => $mailReceiptFrom,
     'mail_receipt_subject' => $mailReceiptSubject,
     'gmail_processed_label_name' => $gmailProcessedLabelName,
     'mail_parser' => [

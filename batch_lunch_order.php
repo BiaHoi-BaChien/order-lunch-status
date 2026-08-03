@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/src/Logger.php';
 require_once __DIR__ . '/src/GmailClient.php';
+require_once __DIR__ . '/src/GmailMessageAuthenticator.php';
 require_once __DIR__ . '/src/NotionClient.php';
 require_once __DIR__ . '/src/MailParser.php';
 require_once __DIR__ . '/src/LunchOrderService.php';
 require_once __DIR__ . '/src/SlackNotifier.php';
 require_once __DIR__ . '/src/RunWindow.php';
+require_once __DIR__ . '/src/BatchRunLock.php';
 
 $logger = null;
 
@@ -47,9 +49,17 @@ try {
         exit(0);
     }
 
+    $runLock = BatchRunLock::acquire(__DIR__ . '/logs/lunch_batch.lock');
+    if ($runLock === null) {
+        $logger->warn('別のバッチ処理が実行中のためスキップしました');
+        exit(0);
+    }
+
     $notionApiKey = requireConfigValue($config, 'notion_api_key', 'NOTION_API_KEY');
     $notionOrderDataSourceId = requireConfigValue($config, 'notion_order_data_source_id', 'NOTION_ORDER_DATA_SOURCE_ID');
     $notionTicketDataSourceId = requireConfigValue($config, 'notion_ticket_data_source_id', 'NOTION_TICKET_DATA_SOURCE_ID');
+    $config['mail_order_from'] = requireConfigValue($config, 'mail_order_from', 'MAIL_ORDER_FROM');
+    $config['mail_receipt_from'] = requireConfigValue($config, 'mail_receipt_from', 'MAIL_RECEIPT_FROM');
 
     $gmail = new GmailClient(
         $config['gmail_user_id'],
