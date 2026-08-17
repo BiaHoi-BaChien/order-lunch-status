@@ -73,6 +73,73 @@ final class NotionClient
         return $this->request('PATCH', '/pages/' . rawurlencode($pageId), ['properties' => $properties]);
     }
 
+    public function hasImageCaption(string $pageId, string $caption): bool
+    {
+        $startCursor = null;
+        do {
+            $params = ['page_size' => 100];
+            if ($startCursor !== null) {
+                $params['start_cursor'] = $startCursor;
+            }
+            $response = $this->request(
+                'GET',
+                '/blocks/' . rawurlencode($pageId) . '/children?' . http_build_query($params)
+            );
+            if ($this->blocksContainCaption($response['results'] ?? [], $caption)) {
+                return true;
+            }
+            $startCursor = $response['next_cursor'] ?? null;
+        } while (($response['has_more'] ?? false) === true && is_string($startCursor));
+
+        return false;
+    }
+
+    public function appendImageIfMissing(string $pageId, string $data, string $mimeType, string $caption): bool
+    {
+        if ($this->hasImageCaption($pageId, $caption)) {
+            return false;
+        }
+        if ($data === '' || strlen($data) > 20 * 1024 * 1024) {
+            throw new RuntimeException('Notionへ追加するQR画像は1バイト以上20MB以下にしてください');
+        }
+
+        $mimeType = strtolower($mimeType) === 'image/jpg' ? 'image/jpeg' : strtolower($mimeType);
+        $extensions = [
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+        if (!isset($extensions[$mimeType])) {
+            throw new RuntimeException("Notionへ追加できないQR画像形式です: {$mimeType}");
+        }
+
+        $filename = 'ramen-kimura-qr.' . $extensions[$mimeType];
+        $upload = $this->request('POST', '/file_uploads', [
+            'mode' => 'single_part',
+            'filename' => $filename,
+            'content_type' => $mimeType,
+        ]);
+        $uploadId = (string) ($upload['id'] ?? '');
+        if ($uploadId === '') {
+            throw new RuntimeException('Notion File Upload IDを取得できません');
+        }
+        $this->sendFileUpload($uploadId, $data, $mimeType, $filename);
+
+        $this->request('PATCH', '/blocks/' . rawurlencode($pageId) . '/children', [
+            'children' => [[
+                'type' => 'image',
+                'image' => [
+                    'caption' => [['type' => 'text', 'text' => ['content' => $caption]]],
+                    'type' => 'file_upload',
+                    'file_upload' => ['id' => $uploadId],
+                ],
+            ]],
+        ]);
+
+        return true;
+    }
+
     private function queryDataSource(string $dataSourceId, array $filter, array $sorts = []): array
     {
         $pages = [];
@@ -99,7 +166,7 @@ final class NotionClient
         return $pages;
     }
 
-    private function request(string $method, string $path, array $payload): array
+    private function request(string $method, string $path, ?array $payload = null): array
     {
         $ch = curl_init('https://api.notion.com/v1' . $path);
         curl_setopt_array($ch, [
@@ -110,8 +177,10 @@ final class NotionClient
                 'Content-Type: application/json',
                 'Notion-Version: ' . self::NOTION_VERSION,
             ],
-            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
+        if ($payload !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
         if ($this->caBundlePath !== null) {
             curl_setopt($ch, CURLOPT_CAINFO, $this->caBundlePath);
         }
@@ -133,6 +202,55 @@ final class NotionClient
         }
 
         return $decoded;
+    }
+
+    private function sendFileUpload(string $uploadId, string $data, string $mimeType, string $filename): void
+    {
+        $ch = curl_init('https://api.notion.com/v1/file_uploads/' . rawurlencode($uploadId) . '/send');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->apiKey,
+                'Accept: application/json',
+                'Notion-Version: ' . self::NOTION_VERSION,
+            ],
+            CURLOPT_POSTFIELDS => ['file' => new CURLStringFile($data, $mimeType, $filename)],
+        ]);
+        if ($this->caBundlePath !== null) {
+            curl_setopt($ch, CURLOPT_CAINFO, $this->caBundlePath);
+        }
+
+        $body = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($ch);
+        if ($body === false) {
+            throw new RuntimeException("Notion File Upload通信失敗: {$error}");
+        }
+        if ($status < 200 || $status >= 300) {
+            throw new RuntimeException("Notion File Uploadエラー: status={$status}, error={$this->apiErrorSummary((string) $body)}");
+        }
+
+        $decoded = json_decode((string) $body, true);
+        if (!is_array($decoded) || ($decoded['status'] ?? null) !== 'uploaded') {
+            throw new RuntimeException('Notion File Uploadがuploadedになりませんでした');
+        }
+    }
+
+    private function blocksContainCaption(array $blocks, string $caption): bool
+    {
+        foreach ($blocks as $block) {
+            if (!is_array($block) || ($block['type'] ?? null) !== 'image') {
+                continue;
+            }
+            foreach (($block['image']['caption'] ?? []) as $text) {
+                if (($text['plain_text'] ?? $text['text']['content'] ?? null) === $caption) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function apiErrorSummary(string $body): string

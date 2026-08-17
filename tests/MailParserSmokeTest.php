@@ -60,6 +60,30 @@ $numericTicketOrder = $parser->parseOrderConfirmation([
 
 assertSame('1234', $numericTicketOrder['ticket_no']);
 
+$kimuraBody = <<<TEXT
+ご注文ありがとうございます。
+
+氏名：杉山福
+学年：小学5年
+クラス：3組
+出席番号：8
+注文日：2026年08月19日
+メニュー：チャーハン唐揚げ弁当 80,000VND
+合計金額：80000VND
+
+以下のQRコードを銀行アプリで読み取り、本日23:59までに送金してください。
+TEXT;
+$kimuraOrder = $parser->parseKimuraOrderConfirmation([
+    'payload' => [
+        'mimeType' => 'text/plain',
+        'body' => ['data' => base64Url($kimuraBody)],
+    ],
+]);
+
+assertSame('2026-08-19', $kimuraOrder['date']);
+assertSame('チャーハン唐揚げ弁当', $kimuraOrder['item_name']);
+assertSame('合計金額: 80000VND', $kimuraOrder['note']);
+
 
 $chickenCurryBody = str_replace('キムチ牛めし（B券：定食・丼）', 'チキンかつカレー（B券：定食・丼）', $orderBody);
 $chickenCurryOrder = $parser->parseOrderConfirmation([

@@ -5,6 +5,9 @@ declare(strict_types=1);
 final class LunchOrderService
 {
     private const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+    private const KIMURA_SHOP = 'RAMEN KIMURA';
+    private const KIMURA_FROM = 'tobe.kimura@gmail.com';
+    private const KIMURA_SUBJECT = '【お弁当注文確認】';
     private readonly GmailMessageAuthenticator $messageAuthenticator;
 
     public function __construct(
@@ -41,17 +44,29 @@ final class LunchOrderService
 
         $remainingMessageBudget = (int) ($this->config['gmail_max_messages_per_run'] ?? 100);
         $orderSearchLimit = max(1, intdiv($remainingMessageBudget, 2));
-        $orderMessages = $this->gmail->searchMessages($this->gmailSearchQuery(
+        $defaultOrderSearchLimit = max(1, intdiv($orderSearchLimit, 2));
+        $kimuraOrderSearchLimit = $orderSearchLimit - $defaultOrderSearchLimit;
+        $orderMessages = array_map(static fn (array $message): array => $message + ['shop' => 'default'], $this->gmail->searchMessages($this->gmailSearchQuery(
             (string) ($this->config['mail_order_subject'] ?? 'フォームにご記入いただきありがとうございます'),
             (string) ($this->config['mail_order_from'] ?? 'forms-receipts-noreply@google.com')
-        ), $orderSearchLimit);
+        ), $defaultOrderSearchLimit));
+        $kimuraMessages = $kimuraOrderSearchLimit > 0
+            ? array_map(static fn (array $message): array => $message + ['shop' => self::KIMURA_SHOP], $this->gmail->searchMessages(
+                $this->gmailSearchQuery(self::KIMURA_SUBJECT, self::KIMURA_FROM),
+                $kimuraOrderSearchLimit
+            ))
+            : [];
+        $this->logger->info(self::KIMURA_SHOP . '注文確認メール検索件数: ' . count($kimuraMessages));
+        $orderMessages = array_merge($orderMessages, $kimuraMessages);
         $remainingMessageBudget -= count($orderMessages);
         $summary['order_confirmation_found'] = count($orderMessages);
         $this->logger->info('注文確認メール検索件数: ' . count($orderMessages));
 
         foreach ($orderMessages as $messageRef) {
             try {
-                $result = $this->processOrderConfirmation($messageRef['id']);
+                $result = ($messageRef['shop'] ?? null) === self::KIMURA_SHOP
+                    ? $this->processKimuraOrderConfirmation($messageRef['id'])
+                    : $this->processOrderConfirmation($messageRef['id']);
                 $summary[$result === 'success' ? 'order_confirmation_success' : 'order_confirmation_skipped']++;
                 if ($this->labelProcessedMessage($messageRef['id'])) {
                     $summary['order_confirmation_labeled']++;
@@ -210,6 +225,50 @@ final class LunchOrderService
         $this->notion->updateOrder((string) $page['id'], $properties);
 
         $this->logger->info("注文確認メール処理成功: date={$order['date']}, ticket_no={$order['ticket_no']}, message_id={$messageId}");
+
+        return 'success';
+    }
+
+    private function processKimuraOrderConfirmation(string $messageId): string
+    {
+        $message = $this->gmail->getMessage($messageId);
+        $this->messageAuthenticator->assertAuthentic($message, self::KIMURA_FROM);
+        $order = $this->parser->parseKimuraOrderConfirmation($message);
+        $url = $this->gmail->messageUrl($messageId);
+        $caption = self::KIMURA_SHOP . " QRコード (Gmail: {$messageId})";
+
+        $page = $this->notion->findOrderByDate($order['date']);
+        if ($page === null || empty($page['id'])) {
+            throw new RuntimeException("更新対象の日付レコードがありません: date={$order['date']}");
+        }
+
+        $pageId = (string) $page['id'];
+        $status = $this->selectName($page, '状況');
+        if (in_array($status, ['注文済', '受付済'], true)) {
+            if ($this->urlValue($page, '注文確認メール') !== $url) {
+                throw new RuntimeException("同日の注文が既に登録されています: date={$order['date']}, status={$status}");
+            }
+            if ($this->notion->hasImageCaption($pageId, $caption)) {
+                $this->logger->info(self::KIMURA_SHOP . "注文は既に処理済みのためスキップ: date={$order['date']}");
+                return 'skipped';
+            }
+        }
+
+        $qrImage = $this->gmail->extractQrImage($messageId, $message);
+        $this->notion->appendImageIfMissing($pageId, $qrImage['data'], $qrImage['mime_type'], $caption);
+
+        $date = new DateTimeImmutable($order['date']);
+        $this->notion->updateOrder($pageId, [
+            '品名' => ['title' => [['text' => ['content' => $order['item_name']]]]],
+            '日付' => ['date' => ['start' => $order['date']]],
+            '曜日' => ['select' => ['name' => $this->weekday($date)]],
+            '状況' => ['select' => ['name' => '注文済']],
+            'お店' => ['select' => ['name' => self::KIMURA_SHOP]],
+            '備考' => ['rich_text' => [['text' => ['content' => $order['note']]]]],
+            '注文確認メール' => ['url' => $url],
+        ]);
+
+        $this->logger->info(self::KIMURA_SHOP . "注文確認メール処理成功: date={$order['date']}, message_id={$messageId}");
 
         return 'success';
     }
