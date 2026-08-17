@@ -10,6 +10,16 @@ $authenticator->assertAuthentic(message(
     'mx.google.com; dkim=pass header.d=google.com; dmarc=pass header.from=google.com'
 ), 'forms-receipts-noreply@google.com');
 
+$authenticator->assertAuthentic(message(
+    'Quynh <anh.nguyenquynh@matsuyafoods.com.vn>',
+    'mx.google.com; dkim=permerror header.d=matsuyafoods.com.vn; spf=pass smtp.mailfrom=anh.nguyenquynh@matsuyafoods.com.vn'
+), 'anh.nguyenquynh@matsuyafoods.com.vn');
+
+assertThrows(static fn () => $authenticator->assertAuthentic(message(
+    'anh.nguyenquynh@matsuyafoods.com.vn',
+    'mx.google.com; spf=pass smtp.mailfrom=attacker@matsuyafoods.com.vn'
+), 'anh.nguyenquynh@matsuyafoods.com.vn'));
+
 assertThrows(static fn () => $authenticator->assertAuthentic(message(
     'attacker@example.com',
     'mx.google.com; dmarc=pass header.from=example.com'
