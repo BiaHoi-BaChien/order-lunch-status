@@ -52,6 +52,35 @@ final class GmailClient
         return $this->request('GET', '/messages/' . rawurlencode($messageId) . '?format=full');
     }
 
+    /**
+     * @return array{data:string,mime_type:string,description:string}
+     */
+    public function extractQrImage(string $messageId, array $message): array
+    {
+        $images = [];
+        $qrContentIds = [];
+        $payload = $message['payload'] ?? null;
+        if (is_array($payload)) {
+            $this->collectQrContentIds($payload, $qrContentIds);
+            $this->collectInlineImages($messageId, $payload, $qrContentIds, $images);
+        }
+
+        $qrImages = array_values(array_filter(
+            $images,
+            static fn (array $image): bool => stripos($image['description'], 'qr') !== false
+        ));
+        if (count($qrImages) === 1) {
+            return $qrImages[0];
+        }
+        if (count($images) === 1) {
+            return $images[0];
+        }
+
+        throw new RuntimeException(count($images) === 0
+            ? 'RAMEN KIMURAメールのQR画像が見つかりません'
+            : 'RAMEN KIMURAメールのQR画像を一意に特定できません');
+    }
+
     public function messageUrl(string $messageId): string
     {
         return "https://mail.google.com/mail/u/0/#inbox/{$messageId}";
@@ -220,6 +249,121 @@ final class GmailClient
         $decoded = json_decode((string) file_get_contents($path), true);
         if (!is_array($decoded)) {
             throw new RuntimeException("JSONファイルを解析できません: {$path}。初回は php gmail_auth.php を実行して再生成してください");
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param list<array{data:string,mime_type:string,description:string}> $images
+     */
+    private function collectInlineImages(string $messageId, array $part, array $qrContentIds, array &$images): void
+    {
+        $mimeType = strtolower((string) ($part['mimeType'] ?? ''));
+        if (str_starts_with($mimeType, 'image/')) {
+            $data = $part['body']['data'] ?? null;
+            $attachmentId = $part['body']['attachmentId'] ?? null;
+            if (!is_string($data) && is_string($attachmentId) && $attachmentId !== '') {
+                $attachment = $this->request(
+                    'GET',
+                    '/messages/' . rawurlencode($messageId) . '/attachments/' . rawurlencode($attachmentId)
+                );
+                $data = $attachment['data'] ?? null;
+            }
+            if (is_string($data) && $data !== '') {
+                $contentId = strtolower(trim($this->partHeader($part, 'Content-ID'), '<> '));
+                $images[] = [
+                    'data' => $this->decodeBase64Url($data),
+                    'mime_type' => $mimeType,
+                    'description' => trim((string) ($part['filename'] ?? '') . ' ' . $contentId
+                        . (in_array($contentId, $qrContentIds, true) ? ' QRコード' : '')),
+                ];
+            }
+        } elseif ($mimeType === 'text/html' && is_string($part['body']['data'] ?? null)) {
+            $this->collectDataUriImages($this->decodeBase64Url($part['body']['data']), $images);
+        }
+
+        foreach (($part['parts'] ?? []) as $child) {
+            if (is_array($child)) {
+                $this->collectInlineImages($messageId, $child, $qrContentIds, $images);
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $qrContentIds
+     */
+    private function collectQrContentIds(array $part, array &$qrContentIds): void
+    {
+        if (strtolower((string) ($part['mimeType'] ?? '')) === 'text/html'
+            && is_string($part['body']['data'] ?? null)) {
+            $document = new DOMDocument();
+            $previous = libxml_use_internal_errors(true);
+            $document->loadHTML('<?xml encoding="UTF-8">' . $this->decodeBase64Url($part['body']['data']), LIBXML_NOERROR | LIBXML_NOWARNING);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            foreach ($document->getElementsByTagName('img') as $image) {
+                $description = trim($image->getAttribute('alt') . ' ' . $image->getAttribute('title'));
+                $src = (string) $image->getAttribute('src');
+                if (stripos($description, 'qr') !== false && str_starts_with(strtolower($src), 'cid:')) {
+                    $qrContentIds[] = strtolower(trim(substr($src, 4), '<> '));
+                }
+            }
+        }
+
+        foreach (($part['parts'] ?? []) as $child) {
+            if (is_array($child)) {
+                $this->collectQrContentIds($child, $qrContentIds);
+            }
+        }
+    }
+
+    /**
+     * @param list<array{data:string,mime_type:string,description:string}> $images
+     */
+    private function collectDataUriImages(string $html, array &$images): void
+    {
+        $document = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        foreach ($document->getElementsByTagName('img') as $image) {
+            $src = (string) $image->getAttribute('src');
+            if (preg_match('/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/is', $src, $match) !== 1) {
+                continue;
+            }
+            $data = base64_decode(preg_replace('/\s+/', '', $match[2]) ?? $match[2], true);
+            if ($data !== false) {
+                $images[] = [
+                    'data' => $data,
+                    'mime_type' => strtolower($match[1]),
+                    'description' => trim($image->getAttribute('alt') . ' ' . $image->getAttribute('title')),
+                ];
+            }
+        }
+    }
+
+    private function partHeader(array $part, string $name): string
+    {
+        foreach (($part['headers'] ?? []) as $header) {
+            if (strcasecmp((string) ($header['name'] ?? ''), $name) === 0) {
+                return (string) ($header['value'] ?? '');
+            }
+        }
+
+        return '';
+    }
+
+    private function decodeBase64Url(string $data): string
+    {
+        $normalized = strtr($data, '-_', '+/');
+        $normalized .= str_repeat('=', (4 - strlen($normalized) % 4) % 4);
+        $decoded = base64_decode($normalized, true);
+        if ($decoded === false) {
+            throw new RuntimeException('Gmail画像のデコードに失敗しました');
         }
 
         return $decoded;

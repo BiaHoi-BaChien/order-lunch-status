@@ -118,6 +118,38 @@ final class MailParser
     }
 
     /**
+     * @return array{date:string,item_name:string,note:string}
+     */
+    public function parseKimuraOrderConfirmation(array $message): array
+    {
+        $text = $this->extractText($message);
+        $dateAnswer = $this->answerFor($text, ['注文日']);
+        if ($dateAnswer === null || preg_match('/(\d{4})年(\d{1,2})月(\d{1,2})日/u', mb_convert_kana($dateAnswer, 'n', 'UTF-8'), $date) !== 1) {
+            throw new RuntimeException('RAMEN KIMURAの注文日を抽出できません');
+        }
+        if (!checkdate((int) $date[2], (int) $date[3], (int) $date[1])) {
+            throw new RuntimeException("RAMEN KIMURAの注文日が実在しません: {$dateAnswer}");
+        }
+
+        $menu = $this->answerFor($text, ['メニュー']);
+        $itemName = trim((string) preg_replace('/\s+\d[\d,]*\s*VND\s*$/iu', '', (string) $menu));
+        if ($itemName === '') {
+            throw new RuntimeException('RAMEN KIMURAのメニューを抽出できません');
+        }
+
+        $amount = trim((string) $this->answerFor($text, ['合計金額']));
+        if ($amount === '') {
+            throw new RuntimeException('RAMEN KIMURAの合計金額を抽出できません');
+        }
+
+        return [
+            'date' => sprintf('%04d-%02d-%02d', (int) $date[1], (int) $date[2], (int) $date[3]),
+            'item_name' => $itemName,
+            'note' => '合計金額: ' . $amount,
+        ];
+    }
+
+    /**
      * @return array{date:string,warn_previous_year:bool}
      */
     public function parseReceipt(array $message): array
