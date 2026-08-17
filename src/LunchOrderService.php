@@ -255,7 +255,13 @@ final class LunchOrderService
         }
 
         $qrImage = $this->gmail->extractQrImage($messageId, $message);
-        $this->notion->appendImageIfMissing($pageId, $qrImage['data'], $qrImage['mime_type'], $caption);
+        if ($qrImage === null) {
+            $this->logger->warn(self::KIMURA_SHOP . "メールにQR画像がないため画像追加をスキップ: message_id={$messageId}");
+        } elseif (isset($qrImage['url'])) {
+            $this->notion->appendExternalImageIfMissing($pageId, $qrImage['url'], $caption);
+        } else {
+            $this->notion->appendImageIfMissing($pageId, $qrImage['data'], $qrImage['mime_type'], $caption);
+        }
 
         $date = new DateTimeImmutable($order['date']);
         $this->notion->updateOrder($pageId, [

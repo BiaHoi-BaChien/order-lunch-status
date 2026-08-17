@@ -34,6 +34,23 @@ $image = $gmail->extractQrImage('message-id', $message);
 assertSame('qr-image', $image['data']);
 assertSame('image/png', $image['mime_type']);
 
+$externalUrl = 'https://img.vietqr.io/image/test.png?amount=80000';
+$externalImage = $gmail->extractQrImage('message-id', [
+    'payload' => [
+        'mimeType' => 'text/html',
+        'body' => ['data' => base64Url('<img src="' . $externalUrl . '">')],
+    ],
+]);
+assertSame($externalUrl, $externalImage['url']);
+
+$missingImage = $gmail->extractQrImage('message-id', [
+    'payload' => [
+        'mimeType' => 'text/plain',
+        'body' => ['data' => base64Url('QR画像なし')],
+    ],
+]);
+assertSame(null, $missingImage);
+
 echo "Gmail QR image test passed\n";
 
 function base64Url(string $value): string
