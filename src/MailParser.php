@@ -132,7 +132,10 @@ final class MailParser
         }
 
         $menu = $this->answerFor($text, ['メニュー']);
-        $itemName = trim((string) preg_replace('/\s+\d[\d,]*\s*VND\s*$/iu', '', (string) $menu));
+        $itemName = trim((string) preg_replace([
+            '/^\d{4}年\d{1,2}月\d{1,2}日\s*メニュー[:：]\s*/u',
+            '/\s+\d[\d,]*\s*VND\s*$/iu',
+        ], '', (string) $menu));
         if ($itemName === '') {
             throw new RuntimeException('RAMEN KIMURAのメニューを抽出できません');
         }
