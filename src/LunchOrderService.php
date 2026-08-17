@@ -8,14 +8,17 @@ final class LunchOrderService
     private const KIMURA_SHOP = 'RAMEN KIMURA';
     private const KIMURA_FROM = 'tobe.kimura@gmail.com';
     private const KIMURA_SUBJECT = '【お弁当注文確認】';
+    private readonly GmailMessageAuthenticator $messageAuthenticator;
 
     public function __construct(
         private readonly GmailClient $gmail,
         private readonly NotionClient $notion,
         private readonly MailParser $parser,
         private readonly Logger $logger,
-        private readonly array $config
+        private readonly array $config,
+        ?GmailMessageAuthenticator $messageAuthenticator = null
     ) {
+        $this->messageAuthenticator = $messageAuthenticator ?? new GmailMessageAuthenticator();
     }
 
     /**
@@ -39,15 +42,23 @@ final class LunchOrderService
 
         $summary['initial_created'] = $this->ensureInitialRecords();
 
+        $remainingMessageBudget = (int) ($this->config['gmail_max_messages_per_run'] ?? 100);
+        $orderSearchLimit = max(1, intdiv($remainingMessageBudget, 2));
+        $defaultOrderSearchLimit = max(1, intdiv($orderSearchLimit, 2));
+        $kimuraOrderSearchLimit = $orderSearchLimit - $defaultOrderSearchLimit;
         $orderMessages = array_map(static fn (array $message): array => $message + ['shop' => 'default'], $this->gmail->searchMessages($this->gmailSearchQuery(
             (string) ($this->config['mail_order_subject'] ?? 'フォームにご記入いただきありがとうございます'),
             (string) ($this->config['mail_order_from'] ?? 'forms-receipts-noreply@google.com')
-        )));
-        $kimuraMessages = array_map(static fn (array $message): array => $message + ['shop' => self::KIMURA_SHOP], $this->gmail->searchMessages(
-            $this->gmailSearchQuery(self::KIMURA_SUBJECT, self::KIMURA_FROM)
-        ));
+        ), $defaultOrderSearchLimit));
+        $kimuraMessages = $kimuraOrderSearchLimit > 0
+            ? array_map(static fn (array $message): array => $message + ['shop' => self::KIMURA_SHOP], $this->gmail->searchMessages(
+                $this->gmailSearchQuery(self::KIMURA_SUBJECT, self::KIMURA_FROM),
+                $kimuraOrderSearchLimit
+            ))
+            : [];
         $this->logger->info(self::KIMURA_SHOP . '注文確認メール検索件数: ' . count($kimuraMessages));
         $orderMessages = array_merge($orderMessages, $kimuraMessages);
+        $remainingMessageBudget -= count($orderMessages);
         $summary['order_confirmation_found'] = count($orderMessages);
         $this->logger->info('注文確認メール検索件数: ' . count($orderMessages));
 
@@ -68,9 +79,15 @@ final class LunchOrderService
             }
         }
 
-        $receiptMessages = $this->gmail->searchMessages($this->gmailSearchQuery(
-            (string) ($this->config['mail_receipt_subject'] ?? '【松屋】お弁当注文受付確認')
-        ));
+        $receiptMessages = $remainingMessageBudget > 0
+            ? $this->gmail->searchMessages($this->gmailSearchQuery(
+                (string) ($this->config['mail_receipt_subject'] ?? '【松屋】お弁当注文受付確認'),
+                (string) ($this->config['mail_receipt_from'] ?? '')
+            ), $remainingMessageBudget)
+            : [];
+        if ($remainingMessageBudget === 0) {
+            $this->logger->warn('1回あたりのGmail処理上限に達したため、注文受付メール検索をスキップしました');
+        }
         $summary['receipt_found'] = count($receiptMessages);
         $this->logger->info('注文受付メール検索件数: ' . count($receiptMessages));
 
@@ -157,6 +174,7 @@ final class LunchOrderService
     private function processOrderConfirmation(string $messageId): string
     {
         $message = $this->gmail->getMessage($messageId);
+        $this->messageAuthenticator->assertAuthentic($message, (string) $this->config['mail_order_from']);
         $order = $this->parser->parseOrderConfirmation($message);
         if ($order['warn_previous_year']) {
             $this->logger->warn("注文確認メールの日付が前年の可能性があります: date={$order['date']}, message_id={$messageId}");
@@ -214,6 +232,7 @@ final class LunchOrderService
     private function processKimuraOrderConfirmation(string $messageId): string
     {
         $message = $this->gmail->getMessage($messageId);
+        $this->messageAuthenticator->assertAuthentic($message, self::KIMURA_FROM);
         $order = $this->parser->parseKimuraOrderConfirmation($message);
         $url = $this->gmail->messageUrl($messageId);
         $caption = self::KIMURA_SHOP . " QRコード (Gmail: {$messageId})";
@@ -257,6 +276,7 @@ final class LunchOrderService
     private function processReceipt(string $messageId): string
     {
         $message = $this->gmail->getMessage($messageId);
+        $this->messageAuthenticator->assertAuthentic($message, (string) $this->config['mail_receipt_from']);
         $receipt = $this->parser->parseReceipt($message);
         if ($receipt['warn_previous_year']) {
             $this->logger->warn("受付メールの日付が前年の可能性があります: date={$receipt['date']}, message_id={$messageId}");

@@ -91,7 +91,7 @@ final class SlackNotifier
             if (is_array($errorDetails) && $errorDetails !== []) {
                 foreach ($errorDetails as $errorDetail) {
                     if (is_scalar($errorDetail) && (string) $errorDetail !== '') {
-                        $lines[] = '- ' . (string) $errorDetail;
+                        $lines[] = '- ' . $this->escapeMrkdwn((string) $errorDetail);
                     }
                 }
             } else {
@@ -153,7 +153,16 @@ final class SlackNotifier
             $parts[] = $order['note'];
         }
 
-        return implode(' ', $parts);
+        return $this->escapeMrkdwn(implode(' ', $parts));
+    }
+
+    private function escapeMrkdwn(string $value): string
+    {
+        return strtr($value, [
+            '&' => '&amp;',
+            '<' => '&lt;',
+            '>' => '&gt;',
+        ]);
     }
 
     /**

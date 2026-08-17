@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/src/PrivateJsonFile.php';
+
 const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
 try {
@@ -188,21 +190,12 @@ function exchangeCodeForToken(array $client, string $code, string $redirectUri, 
 
 function writeJsonFile(string $path, array $data): void
 {
-    $dir = dirname($path);
-    if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
-        throw new RuntimeException("トークン保存ディレクトリを作成できません: {$dir}");
-    }
-
     $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if ($json === false) {
         throw new RuntimeException('トークンJSONを生成できません');
     }
 
-    if (file_put_contents($path, $json . PHP_EOL, LOCK_EX) === false) {
-        throw new RuntimeException("トークンファイルを書き込めません: {$path}");
-    }
-
-    @chmod($path, 0600);
+    PrivateJsonFile::write($path, $json);
 }
 
 function base64Url(string $value): string

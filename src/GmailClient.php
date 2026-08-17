@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/PrivateJsonFile.php';
+
 final class GmailClient
 {
     private ?string $accessToken = null;
@@ -13,20 +15,25 @@ final class GmailClient
         private readonly string $credentialsPath,
         private readonly string $tokenPath,
         private readonly Logger $logger,
-        private readonly ?string $caBundlePath = null
+        private readonly ?string $caBundlePath = null,
+        private readonly ?Closure $transport = null
     ) {
     }
 
     /**
      * @return array<int, array{id:string,threadId:string}>
      */
-    public function searchMessages(string $query): array
+    public function searchMessages(string $query, int $limit): array
     {
+        if ($limit < 1) {
+            throw new InvalidArgumentException('Gmail検索上限は1以上を指定してください');
+        }
+
         $messages = [];
         $pageToken = null;
 
         do {
-            $params = ['q' => $query, 'maxResults' => 100];
+            $params = ['q' => $query, 'maxResults' => min(100, $limit - count($messages))];
             if ($pageToken !== null) {
                 $params['pageToken'] = $pageToken;
             }
@@ -35,11 +42,14 @@ final class GmailClient
             foreach (($response['messages'] ?? []) as $message) {
                 if (isset($message['id'], $message['threadId'])) {
                     $messages[] = ['id' => $message['id'], 'threadId' => $message['threadId']];
+                    if (count($messages) >= $limit) {
+                        break;
+                    }
                 }
             }
 
             $pageToken = $response['nextPageToken'] ?? null;
-        } while ($pageToken !== null);
+        } while ($pageToken !== null && count($messages) < $limit);
 
         return $messages;
     }
@@ -132,6 +142,14 @@ final class GmailClient
      */
     private function request(string $method, string $path, ?array $payload = null): array
     {
+        if ($this->transport !== null) {
+            $response = ($this->transport)($method, $path, $payload);
+            if (!is_array($response)) {
+                throw new RuntimeException('Gmailテストトランスポートの応答が不正です');
+            }
+            return $response;
+        }
+
         $url = 'https://gmail.googleapis.com/gmail/v1/users/' . rawurlencode($this->userId) . $path;
         $headers = [
             'Authorization: Bearer ' . $this->getAccessToken(),
@@ -223,10 +241,7 @@ final class GmailClient
         if ($tokenJson === false) {
             throw new RuntimeException('Gmail OAuthトークンJSONの生成に失敗しました');
         }
-        if (file_put_contents($this->tokenPath, $tokenJson . PHP_EOL, LOCK_EX) === false) {
-            throw new RuntimeException("Gmail OAuthトークンファイルを書き込めません: {$this->tokenPath}");
-        }
-        @chmod($this->tokenPath, 0600);
+        PrivateJsonFile::write($this->tokenPath, $tokenJson);
 
         $this->logger->info('Gmail access_tokenを更新しました');
 
