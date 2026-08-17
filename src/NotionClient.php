@@ -140,6 +140,29 @@ final class NotionClient
         return true;
     }
 
+    public function appendExternalImageIfMissing(string $pageId, string $url, string $caption): bool
+    {
+        if ($this->hasImageCaption($pageId, $caption)) {
+            return false;
+        }
+        if (filter_var($url, FILTER_VALIDATE_URL) === false || parse_url($url, PHP_URL_SCHEME) !== 'https') {
+            throw new RuntimeException('Notionへ追加する外部QR画像URLは有効なHTTPS URLにしてください');
+        }
+
+        $this->request('PATCH', '/blocks/' . rawurlencode($pageId) . '/children', [
+            'children' => [[
+                'type' => 'image',
+                'image' => [
+                    'caption' => [['type' => 'text', 'text' => ['content' => $caption]]],
+                    'type' => 'external',
+                    'external' => ['url' => $url],
+                ],
+            ]],
+        ]);
+
+        return true;
+    }
+
     private function queryDataSource(string $dataSourceId, array $filter, array $sorts = []): array
     {
         $pages = [];

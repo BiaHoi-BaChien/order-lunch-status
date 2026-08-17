@@ -63,9 +63,9 @@ final class GmailClient
     }
 
     /**
-     * @return array{data:string,mime_type:string,description:string}
+     * @return array{data:string,mime_type:string,description:string}|array{url:string,description:string}|null
      */
-    public function extractQrImage(string $messageId, array $message): array
+    public function extractQrImage(string $messageId, array $message): ?array
     {
         $images = [];
         $qrContentIds = [];
@@ -86,9 +86,11 @@ final class GmailClient
             return $images[0];
         }
 
-        throw new RuntimeException(count($images) === 0
-            ? 'RAMEN KIMURAメールのQR画像が見つかりません'
-            : 'RAMEN KIMURAメールのQR画像を一意に特定できません');
+        if (count($images) === 0) {
+            return null;
+        }
+
+        throw new RuntimeException('RAMEN KIMURAメールのQR画像を一意に特定できません');
     }
 
     public function messageUrl(string $messageId): string
@@ -270,7 +272,7 @@ final class GmailClient
     }
 
     /**
-     * @param list<array{data:string,mime_type:string,description:string}> $images
+     * @param list<array{data?:string,mime_type?:string,url?:string,description:string}> $images
      */
     private function collectInlineImages(string $messageId, array $part, array $qrContentIds, array &$images): void
     {
@@ -295,7 +297,7 @@ final class GmailClient
                 ];
             }
         } elseif ($mimeType === 'text/html' && is_string($part['body']['data'] ?? null)) {
-            $this->collectDataUriImages($this->decodeBase64Url($part['body']['data']), $images);
+            $this->collectHtmlImages($this->decodeBase64Url($part['body']['data']), $images);
         }
 
         foreach (($part['parts'] ?? []) as $child) {
@@ -335,9 +337,9 @@ final class GmailClient
     }
 
     /**
-     * @param list<array{data:string,mime_type:string,description:string}> $images
+     * @param list<array{data?:string,mime_type?:string,url?:string,description:string}> $images
      */
-    private function collectDataUriImages(string $html, array &$images): void
+    private function collectHtmlImages(string $html, array &$images): void
     {
         $document = new DOMDocument();
         $previous = libxml_use_internal_errors(true);
@@ -347,15 +349,26 @@ final class GmailClient
 
         foreach ($document->getElementsByTagName('img') as $image) {
             $src = (string) $image->getAttribute('src');
-            if (preg_match('/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/is', $src, $match) !== 1) {
-                continue;
-            }
-            $data = base64_decode(preg_replace('/\s+/', '', $match[2]) ?? $match[2], true);
-            if ($data !== false) {
+            $description = trim($image->getAttribute('alt') . ' ' . $image->getAttribute('title'));
+            if (preg_match('/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/is', $src, $match) === 1) {
+                $data = base64_decode(preg_replace('/\s+/', '', $match[2]) ?? $match[2], true);
+                if ($data === false) {
+                    continue;
+                }
                 $images[] = [
                     'data' => $data,
                     'mime_type' => strtolower($match[1]),
-                    'description' => trim($image->getAttribute('alt') . ' ' . $image->getAttribute('title')),
+                    'description' => $description,
+                ];
+                continue;
+            }
+
+            $host = strtolower((string) parse_url($src, PHP_URL_HOST));
+            if (parse_url($src, PHP_URL_SCHEME) === 'https'
+                && ($host === 'img.vietqr.io' || stripos($description, 'qr') !== false)) {
+                $images[] = [
+                    'url' => $src,
+                    'description' => trim($description . ' QRコード'),
                 ];
             }
         }
