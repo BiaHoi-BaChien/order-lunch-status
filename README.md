@@ -74,7 +74,7 @@ MAIL_NOTION_PROPERTY_MAPPINGS_JSON=[]
 MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
-複数の質問文や品名候補は `|` 区切りで指定します。`MAIL_FIELD_NOTE_APPEND_LABELS` に指定した質問項目は、回答がある場合に `質問項目: 回答` の形式で備考へ追記します。`MAIL_ORDER_FROM` と `MAIL_RECEIPT_FROM` は必須で、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
+複数の質問文や品名候補は `|` 区切りで指定します。`MAIL_FIELD_NOTE_APPEND_LABELS` に指定した質問項目は、回答がある場合に `質問項目: 回答` の形式で備考へ追記します。`MAIL_ORDER_FROM` と `MAIL_RECEIPT_FROM` は必須で、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
 
 `GMAIL_PROCESSED_LABEL_NAME` のラベルがGmailに存在しない場合は、初回のラベル付与時に自動作成します。既存の `gmail.readonly` トークンではラベル付与できないため、古い `credentials/gmail_token.json` を削除し、`php gmail_auth.php` を再実行して `gmail.modify` の権限でトークンを作り直してください。
 

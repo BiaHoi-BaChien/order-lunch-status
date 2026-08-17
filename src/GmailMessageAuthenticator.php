@@ -37,12 +37,12 @@ final class GmailMessageAuthenticator
 
         $expectedDomain = substr($expectedAddress, (int) strrpos($expectedAddress, '@') + 1);
         foreach ($authenticationResults as $result) {
-            if ($this->isTrustedPass($result, $expectedDomain)) {
+            if ($this->isTrustedPass($result, $expectedAddress, $expectedDomain)) {
                 return;
             }
         }
 
-        throw new RuntimeException('GmailによるDMARCまたはDKIM認証の成功を確認できません');
+        throw new RuntimeException('GmailによるDMARC、DKIMまたはSPF認証の成功を確認できません');
     }
 
     private function mailboxAddress(string $value): string
@@ -64,7 +64,7 @@ final class GmailMessageAuthenticator
         return $value;
     }
 
-    private function isTrustedPass(string $result, string $expectedDomain): bool
+    private function isTrustedPass(string $result, string $expectedAddress, string $expectedDomain): bool
     {
         $normalized = strtolower(trim($result));
         if (preg_match('/^mx\.google\.com\s*;/', $normalized) !== 1) {
@@ -77,9 +77,15 @@ final class GmailMessageAuthenticator
             return true;
         }
 
-        return str_contains($normalized, 'dkim=pass')
+        if (str_contains($normalized, 'dkim=pass')
             && preg_match('/\bheader\.d=([a-z0-9.-]+)/', $normalized, $matches) === 1
-            && $this->domainAligns($matches[1], $expectedDomain);
+            && $this->domainAligns($matches[1], $expectedDomain)) {
+            return true;
+        }
+
+        return preg_match('/(?:^|;)\s*spf=pass\b[^;]*\bsmtp\.mailfrom=([^;\s]+)/', $normalized, $matches) === 1
+            && filter_var($matches[1], FILTER_VALIDATE_EMAIL) !== false
+            && hash_equals($expectedAddress, $matches[1]);
     }
 
     private function domainAligns(string $authenticatedDomain, string $expectedDomain): bool
