@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-putenv('MAIL_NOTION_PROPERTY_MAPPINGS_JSON=[{"key":"curry_type","mail_labels":["カレーの種類"],"notion_property":"カレーの種類","notion_type":"select"}]');
+putenv('MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_JSON=[{"key":"curry_type","mail_labels":["カレーの種類"],"notion_property":"カレーの種類","notion_type":"select"}]');
 putenv('GMAIL_PROCESSED_LABEL_NAME=order-lunch-status-processed');
-putenv('MAIL_FIELD_NOTE_APPEND_LABELS=カレーの種類|ソースの種類');
-putenv('MAIL_RECEIPT_FROM=receipts@example.com');
-putenv('MAIL_KIMURA_ORDER_FROM=kimura@example.com');
-putenv('MAIL_KIMURA_ORDER_SUBJECT=Kimura order');
+putenv('MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS=カレーの種類|ソースの種類');
+putenv('MAIL_MATSUYA_RECEIPT_FROM=receipts@example.com');
+putenv('MAIL_RAMEN_KIMURA_ORDER_FROM=kimura@example.com');
+putenv('MAIL_RAMEN_KIMURA_ORDER_SUBJECT=KIMURA注文確認');
 putenv('GMAIL_MAX_MESSAGES_PER_RUN=75');
 putenv('CURL_CA_BUNDLE=');
 
@@ -21,9 +21,9 @@ assertSame('select', $mapping['notion_type'] ?? null);
 assertSame('curry_type', $config['mail_parser']['mapped_fields'][0]['key'] ?? null);
 assertSame('order-lunch-status-processed', $config['gmail_processed_label_name'] ?? null);
 assertSame(['カレーの種類', 'ソースの種類'], $config['mail_parser']['note_append_labels'] ?? null);
-assertSame('receipts@example.com', $config['mail_receipt_from'] ?? null);
-assertSame('kimura@example.com', $config['mail_kimura_order_from'] ?? null);
-assertSame('Kimura order', $config['mail_kimura_order_subject'] ?? null);
+assertSame('receipts@example.com', $config['matsuya_mail_receipt_from'] ?? null);
+assertSame('kimura@example.com', $config['ramen_kimura_mail_order_from'] ?? null);
+assertSame('KIMURA注文確認', $config['ramen_kimura_mail_order_subject'] ?? null);
 assertSame(75, $config['gmail_max_messages_per_run'] ?? null);
 
 echo "Config mapping test passed\n";

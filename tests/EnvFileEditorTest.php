@@ -7,27 +7,27 @@ require_once __DIR__ . '/../src/EnvFileEditor.php';
 $path = sys_get_temp_dir() . '/order-lunch-status-env-' . bin2hex(random_bytes(6)) . '.env';
 file_put_contents($path, implode(PHP_EOL, [
     'NOTION_API_KEY=secret_xxx',
-    'MAIL_ORDER_FROM=forms-receipts-noreply@google.com',
-    'MAIL_FIELD_ITEM_LABELS=品名|メニュー',
+    'MAIL_MATSUYA_ORDER_FROM=forms-receipts-noreply@google.com',
+    'MAIL_MATSUYA_FIELD_ITEM_LABELS=品名|メニュー',
     '# comment',
     '',
 ]) . PHP_EOL);
 
 try {
     $values = EnvFileEditor::readValues($path);
-    assertSame('forms-receipts-noreply@google.com', $values['MAIL_ORDER_FROM'] ?? null);
-    assertSame(['品名', 'メニュー'], EnvFileEditor::envToList($values['MAIL_FIELD_ITEM_LABELS'] ?? ''));
+    assertSame('forms-receipts-noreply@google.com', $values['MAIL_MATSUYA_ORDER_FROM'] ?? null);
+    assertSame(['品名', 'メニュー'], EnvFileEditor::envToList($values['MAIL_MATSUYA_FIELD_ITEM_LABELS'] ?? ''));
 
     EnvFileEditor::updateValues($path, [
-        'MAIL_ORDER_FROM' => '',
-        'MAIL_FIELD_ITEM_LABELS' => EnvFileEditor::listToEnv(['品名', '注文したお弁当', '']),
+        'MAIL_MATSUYA_ORDER_FROM' => '',
+        'MAIL_MATSUYA_FIELD_ITEM_LABELS' => EnvFileEditor::listToEnv(['品名', '注文したお弁当', '']),
         'MAIL_SETTINGS_TEST_VALUE' => 'pass#word',
     ]);
 
     $updated = EnvFileEditor::readValues($path);
     assertSame('secret_xxx', $updated['NOTION_API_KEY'] ?? null);
-    assertSame('', $updated['MAIL_ORDER_FROM'] ?? null);
-    assertSame('品名|注文したお弁当', $updated['MAIL_FIELD_ITEM_LABELS'] ?? null);
+    assertSame('', $updated['MAIL_MATSUYA_ORDER_FROM'] ?? null);
+    assertSame('品名|注文したお弁当', $updated['MAIL_MATSUYA_FIELD_ITEM_LABELS'] ?? null);
     assertSame('pass#word', $updated['MAIL_SETTINGS_TEST_VALUE'] ?? null);
 
     $content = (string) file_get_contents($path);
