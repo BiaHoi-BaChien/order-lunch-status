@@ -14,7 +14,7 @@ $envPath = __DIR__ . '/.env';
 $settings = [
     'MAIL_ORDER_FROM' => ['label' => '注文確認メールの送信元', 'type' => 'text'],
     'MAIL_ORDER_SUBJECT' => ['label' => '注文確認メールの件名', 'type' => 'text'],
-    'MAIL_RECEIPT_FROM' => ['label' => '受付確認メールの送信元', 'type' => 'text'],
+    'MAIL_RECEIPT_FROM' => ['label' => '受付確認メールの送信元（|区切りで複数指定可）', 'type' => 'text'],
     'MAIL_RECEIPT_SUBJECT' => ['label' => '受付確認メールの件名', 'type' => 'text'],
     'MAIL_FIELD_DATE_LABELS' => ['label' => '日付欄の質問文', 'type' => 'list'],
     'MAIL_FIELD_TICKET_LABELS' => ['label' => 'お弁当番号欄の質問文', 'type' => 'list'],
