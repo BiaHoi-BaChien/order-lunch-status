@@ -97,7 +97,7 @@ MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH=
 
 ### メール解析設定のWeb編集
 
-`mail_settings.php` をブラウザで開くと、上記のメール解析設定をWeb画面から編集できます。リスト項目は1行1項目で入力し、保存時に `.env` へ `|` 区切りで書き戻します。その他の `.env` 項目は保持します。
+`mail_settings.php` をブラウザで開くと、上記のメール解析設定を松屋とRAMEN KIMURAの店舗別にWeb画面から編集できます。リスト項目は1行1項目で入力し、保存時に `.env` へ `|` 区切りで書き戻します。その他の `.env` 項目は保持します。
 
 `mail_settings.php` を使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD_HASH` を設定してください。未設定の場合はlocalhostを含むすべてのアクセスを拒否します。
 
