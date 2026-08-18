@@ -61,6 +61,8 @@ MAIL_ORDER_FROM=forms-receipts-noreply@google.com
 MAIL_ORDER_SUBJECT=フォームにご記入いただきありがとうございます
 MAIL_RECEIPT_FROM=送信元アドレス1|送信元アドレス2
 MAIL_RECEIPT_SUBJECT=【松屋】お弁当注文受付確認
+MAIL_KIMURA_ORDER_FROM=tobe.kimura@gmail.com
+MAIL_KIMURA_ORDER_SUBJECT=【お弁当注文確認】
 GMAIL_PROCESSED_LABEL_NAME=order-lunch-status-processed
 MAIL_FIELD_DATE_LABELS=お子様がお弁当を召し上がる日付を記載してください|お弁当を召し上がる日付
 MAIL_FIELD_TICKET_LABELS=お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー|お弁当ナンバー|お弁当番号
@@ -95,7 +97,7 @@ MAIL_NOTION_PROPERTY_MAPPINGS_PATH=
 
 ### メール解析設定のWeb編集
 
-`mail_settings.php` をブラウザで開くと、上記のメール解析設定をWeb画面から編集できます。リスト項目は1行1項目で入力し、保存時に `.env` へ `|` 区切りで書き戻します。その他の `.env` 項目は保持します。
+`mail_settings.php` をブラウザで開くと、上記のメール解析設定を松屋とRAMEN KIMURAの店舗別にWeb画面から編集できます。リスト項目は1行1項目で入力し、保存時に `.env` へ `|` 区切りで書き戻します。その他の `.env` 項目は保持します。
 
 `mail_settings.php` を使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD_HASH` を設定してください。未設定の場合はlocalhostを含むすべてのアクセスを拒否します。
 

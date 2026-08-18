@@ -227,6 +227,8 @@ $mailOrderFrom = envString('MAIL_ORDER_FROM', 'forms-receipts-noreply@google.com
 $mailOrderSubject = envValue('MAIL_ORDER_SUBJECT', 'フォームにご記入いただきありがとうございます');
 $mailReceiptFrom = envString('MAIL_RECEIPT_FROM', '');
 $mailReceiptSubject = envValue('MAIL_RECEIPT_SUBJECT', '【松屋】お弁当注文受付確認');
+$mailKimuraOrderFrom = envString('MAIL_KIMURA_ORDER_FROM', 'tobe.kimura@gmail.com');
+$mailKimuraOrderSubject = envValue('MAIL_KIMURA_ORDER_SUBJECT', '【お弁当注文確認】');
 $gmailProcessedLabelName = envString('GMAIL_PROCESSED_LABEL_NAME', 'order-lunch-status-processed');
 $mailNotionPropertyMappings = envMailNotionPropertyMappings('MAIL_NOTION_PROPERTY_MAPPINGS_JSON', 'MAIL_NOTION_PROPERTY_MAPPINGS_PATH');
 if ($slackNotificationEnabled && $slackWebhookUrl === '') {
@@ -257,6 +259,8 @@ return [
     'mail_order_subject' => $mailOrderSubject,
     'mail_receipt_from' => $mailReceiptFrom,
     'mail_receipt_subject' => $mailReceiptSubject,
+    'mail_kimura_order_from' => $mailKimuraOrderFrom,
+    'mail_kimura_order_subject' => $mailKimuraOrderSubject,
     'gmail_processed_label_name' => $gmailProcessedLabelName,
     'mail_parser' => [
         'date_labels' => envList('MAIL_FIELD_DATE_LABELS', MailParser::DEFAULT_DATE_LABELS),

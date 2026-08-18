@@ -6,8 +6,6 @@ final class LunchOrderService
 {
     private const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
     private const KIMURA_SHOP = 'RAMEN KIMURA';
-    private const KIMURA_FROM = 'tobe.kimura@gmail.com';
-    private const KIMURA_SUBJECT = '【お弁当注文確認】';
     private readonly GmailMessageAuthenticator $messageAuthenticator;
 
     public function __construct(
@@ -52,7 +50,10 @@ final class LunchOrderService
         ), $defaultOrderSearchLimit));
         $kimuraMessages = $kimuraOrderSearchLimit > 0
             ? array_map(static fn (array $message): array => $message + ['shop' => self::KIMURA_SHOP], $this->gmail->searchMessages(
-                $this->gmailSearchQuery(self::KIMURA_SUBJECT, self::KIMURA_FROM),
+                $this->gmailSearchQuery(
+                    (string) ($this->config['mail_kimura_order_subject'] ?? '【お弁当注文確認】'),
+                    (string) ($this->config['mail_kimura_order_from'] ?? 'tobe.kimura@gmail.com')
+                ),
                 $kimuraOrderSearchLimit
             ))
             : [];
@@ -238,7 +239,7 @@ final class LunchOrderService
     private function processKimuraOrderConfirmation(string $messageId): string
     {
         $message = $this->gmail->getMessage($messageId);
-        $this->messageAuthenticator->assertAuthentic($message, self::KIMURA_FROM);
+        $this->messageAuthenticator->assertAuthentic($message, (string) $this->config['mail_kimura_order_from']);
         $order = $this->parser->parseKimuraOrderConfirmation($message);
         $url = $this->gmail->messageUrl($messageId);
         $caption = self::KIMURA_SHOP . " QRコード (Gmail: {$messageId})";

@@ -6,6 +6,8 @@ putenv('MAIL_NOTION_PROPERTY_MAPPINGS_JSON=[{"key":"curry_type","mail_labels":["
 putenv('GMAIL_PROCESSED_LABEL_NAME=order-lunch-status-processed');
 putenv('MAIL_FIELD_NOTE_APPEND_LABELS=カレーの種類|ソースの種類');
 putenv('MAIL_RECEIPT_FROM=receipts@example.com');
+putenv('MAIL_KIMURA_ORDER_FROM=kimura@example.com');
+putenv('MAIL_KIMURA_ORDER_SUBJECT=Kimura order');
 putenv('GMAIL_MAX_MESSAGES_PER_RUN=75');
 putenv('CURL_CA_BUNDLE=');
 
@@ -20,6 +22,8 @@ assertSame('curry_type', $config['mail_parser']['mapped_fields'][0]['key'] ?? nu
 assertSame('order-lunch-status-processed', $config['gmail_processed_label_name'] ?? null);
 assertSame(['カレーの種類', 'ソースの種類'], $config['mail_parser']['note_append_labels'] ?? null);
 assertSame('receipts@example.com', $config['mail_receipt_from'] ?? null);
+assertSame('kimura@example.com', $config['mail_kimura_order_from'] ?? null);
+assertSame('Kimura order', $config['mail_kimura_order_subject'] ?? null);
 assertSame(75, $config['gmail_max_messages_per_run'] ?? null);
 
 echo "Config mapping test passed\n";
