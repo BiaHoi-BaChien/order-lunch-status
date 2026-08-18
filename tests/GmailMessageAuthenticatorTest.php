@@ -15,6 +15,21 @@ $authenticator->assertAuthentic(message(
     'mx.google.com; dkim=permerror header.d=matsuyafoods.com.vn; spf=pass smtp.mailfrom=anh.nguyenquynh@matsuyafoods.com.vn'
 ), 'anh.nguyenquynh@matsuyafoods.com.vn');
 
+$authenticator->assertAuthentic(message(
+    'Receipt B <receipt-b@example.com>',
+    'mx.google.com; spf=pass smtp.mailfrom=receipt-b@example.com'
+), 'receipt-a@example.com|receipt-b@example.com');
+
+$authenticator->assertAuthentic(message(
+    'Receipt B <receipt-b@example.com>',
+    'mx.google.com; spf=pass smtp.mailfrom=receipt-b@example.com'
+), 'receipt-a@example.com｜receipt-b@example.com');
+
+assertThrows(static fn () => $authenticator->assertAuthentic(message(
+    'attacker@example.com',
+    'mx.google.com; spf=pass smtp.mailfrom=attacker@example.com'
+), 'receipt-a@example.com|receipt-b@example.com'));
+
 assertThrows(static fn () => $authenticator->assertAuthentic(message(
     'anh.nguyenquynh@matsuyafoods.com.vn',
     'mx.google.com; spf=pass smtp.mailfrom=attacker@matsuyafoods.com.vn'

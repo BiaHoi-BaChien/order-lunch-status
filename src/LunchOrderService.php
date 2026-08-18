@@ -145,8 +145,14 @@ final class LunchOrderService
     private function gmailSearchQuery(string $subject, string $from = ''): string
     {
         $terms = [];
-        if (trim($from) !== '') {
-            $terms[] = 'from:' . trim($from);
+        $fromAddresses = array_values(array_filter(
+            array_map('trim', preg_split('/[|｜]/u', $from) ?: []),
+            static fn (string $address): bool => $address !== ''
+        ));
+        if (count($fromAddresses) === 1) {
+            $terms[] = 'from:' . $fromAddresses[0];
+        } elseif ($fromAddresses !== []) {
+            $terms[] = '{from:' . implode(' from:', $fromAddresses) . '}';
         }
         $terms[] = 'subject:"' . str_replace('"', '\\"', $subject) . '"';
         $terms[] = sprintf('newer_than:%dd', (int) $this->config['lookback_days']);

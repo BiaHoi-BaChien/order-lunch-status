@@ -9,7 +9,15 @@ final class GmailMessageAuthenticator
      */
     public function assertAuthentic(array $message, string $expectedSender): void
     {
-        $expectedAddress = $this->mailboxAddress($expectedSender);
+        $expectedAddresses = array_values(array_filter(
+            array_map('trim', preg_split('/[|｜]/u', $expectedSender) ?: []),
+            static fn (string $address): bool => $address !== ''
+        ));
+        $expectedAddresses = array_map($this->mailboxAddress(...), $expectedAddresses);
+        if ($expectedAddresses === []) {
+            throw new RuntimeException('メール送信元アドレスの形式が不正です');
+        }
+
         $headers = $message['payload']['headers'] ?? [];
         if (!is_array($headers)) {
             throw new RuntimeException('メールヘッダーを確認できません');
@@ -31,7 +39,14 @@ final class GmailMessageAuthenticator
             }
         }
 
-        if ($fromAddress === null || !hash_equals($expectedAddress, $fromAddress)) {
+        $expectedAddress = null;
+        foreach ($expectedAddresses as $address) {
+            if ($fromAddress !== null && hash_equals($address, $fromAddress)) {
+                $expectedAddress = $address;
+                break;
+            }
+        }
+        if ($expectedAddress === null) {
             throw new RuntimeException('メール送信元が許可されたアドレスと一致しません');
         }
 
