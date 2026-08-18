@@ -58,8 +58,9 @@ try {
     $notionApiKey = requireConfigValue($config, 'notion_api_key', 'NOTION_API_KEY');
     $notionOrderDataSourceId = requireConfigValue($config, 'notion_order_data_source_id', 'NOTION_ORDER_DATA_SOURCE_ID');
     $notionTicketDataSourceId = requireConfigValue($config, 'notion_ticket_data_source_id', 'NOTION_TICKET_DATA_SOURCE_ID');
-    $config['mail_order_from'] = requireConfigValue($config, 'mail_order_from', 'MAIL_ORDER_FROM');
-    $config['mail_receipt_from'] = requireConfigValue($config, 'mail_receipt_from', 'MAIL_RECEIPT_FROM');
+    $config['matsuya_mail_order_from'] = requireConfigValue($config, 'matsuya_mail_order_from', 'MAIL_MATSUYA_ORDER_FROM');
+    $config['matsuya_mail_receipt_from'] = requireConfigValue($config, 'matsuya_mail_receipt_from', 'MAIL_MATSUYA_RECEIPT_FROM');
+    $config['ramen_kimura_mail_order_from'] = requireConfigValue($config, 'ramen_kimura_mail_order_from', 'MAIL_RAMEN_KIMURA_ORDER_FROM');
 
     $gmail = new GmailClient(
         $config['gmail_user_id'],
