@@ -80,12 +80,24 @@ final class LunchOrderService
             }
         }
 
-        $receiptMessages = $remainingMessageBudget > 0
-            ? $this->gmail->searchMessages($this->gmailSearchQuery(
+        $matsuyaReceiptSearchLimit = $remainingMessageBudget > 0
+            ? max(1, intdiv($remainingMessageBudget, 2))
+            : 0;
+        $kimuraReceiptSearchLimit = $remainingMessageBudget - $matsuyaReceiptSearchLimit;
+        $receiptMessages = $matsuyaReceiptSearchLimit > 0
+            ? array_map(static fn (array $message): array => $message + ['shop' => 'default'], $this->gmail->searchMessages($this->gmailSearchQuery(
                 (string) ($this->config['matsuya_mail_receipt_subject'] ?? '【松屋】お弁当注文受付確認'),
                 (string) ($this->config['matsuya_mail_receipt_from'] ?? '')
-            ), $remainingMessageBudget)
+            ), $matsuyaReceiptSearchLimit))
             : [];
+        $kimuraReceiptMessages = $kimuraReceiptSearchLimit > 0
+            ? array_map(static fn (array $message): array => $message + ['shop' => self::KIMURA_SHOP], $this->gmail->searchMessages($this->gmailSearchQuery(
+                (string) ($this->config['ramen_kimura_mail_receipt_subject'] ?? '【弁当注文】ご注文が確定しました（ご入金を確認しました）'),
+                (string) ($this->config['ramen_kimura_mail_receipt_from'] ?? 'tobe.kimura@gmail.com')
+            ), $kimuraReceiptSearchLimit))
+            : [];
+        $this->logger->info(self::KIMURA_SHOP . '注文受付メール検索件数: ' . count($kimuraReceiptMessages));
+        $receiptMessages = array_merge($receiptMessages, $kimuraReceiptMessages);
         if ($remainingMessageBudget === 0) {
             $this->logger->warn('1回あたりのGmail処理上限に達したため、注文受付メール検索をスキップしました');
         }
@@ -94,7 +106,12 @@ final class LunchOrderService
 
         foreach ($receiptMessages as $messageRef) {
             try {
-                $result = $this->processReceipt($messageRef['id']);
+                $isKimura = ($messageRef['shop'] ?? null) === self::KIMURA_SHOP;
+                $result = $this->processReceipt(
+                    $messageRef['id'],
+                    (string) $this->config[$isKimura ? 'ramen_kimura_mail_receipt_from' : 'matsuya_mail_receipt_from'],
+                    $isKimura
+                );
                 $summary[$result === 'success' ? 'receipt_success' : 'receipt_skipped']++;
                 if ($this->labelProcessedMessage($messageRef['id'])) {
                     $summary['receipt_labeled']++;
@@ -286,11 +303,13 @@ final class LunchOrderService
         return 'success';
     }
 
-    private function processReceipt(string $messageId): string
+    private function processReceipt(string $messageId, string $expectedSender, bool $isKimura): string
     {
         $message = $this->gmail->getMessage($messageId);
-        $this->messageAuthenticator->assertAuthentic($message, (string) $this->config['matsuya_mail_receipt_from']);
-        $receipt = $this->parser->parseReceipt($message);
+        $this->messageAuthenticator->assertAuthentic($message, $expectedSender);
+        $receipt = $isKimura
+            ? $this->parser->parseKimuraReceipt($message)
+            : $this->parser->parseReceipt($message);
         if ($receipt['warn_previous_year']) {
             $this->logger->warn("受付メールの日付が前年の可能性があります: date={$receipt['date']}, message_id={$messageId}");
         }
@@ -300,14 +319,18 @@ final class LunchOrderService
             throw new RuntimeException("受付メールに対応する注文レコードなし: date={$receipt['date']}");
         }
 
+        $status = $this->selectName($page, '状況');
+        if ($isKimura && !$this->isConfirmedKimuraOrder($page)) {
+            throw new RuntimeException("RAMEN KIMURA受付メールに対応する注文確認が未処理です: date={$receipt['date']}");
+        }
+
         $url = $this->gmail->messageUrl($messageId);
         $currentUrl = $this->urlValue($page, '受付確認メール');
-        if ($currentUrl === $url && $this->selectName($page, '状況') === '受付済') {
+        if ($currentUrl === $url && $status === '受付済') {
             $this->logger->info("受付確認メールは既に処理済みのためスキップ: date={$receipt['date']}, message_id={$messageId}");
             return 'skipped';
         }
 
-        $status = $this->selectName($page, '状況');
         if (in_array($status, ['未注文', '利用しない'], true)) {
             $this->logger->warn("注文済でないレコードを受付済に更新: date={$receipt['date']}, current_status={$status}");
         }
@@ -320,6 +343,13 @@ final class LunchOrderService
         $this->logger->info("注文受付メール処理成功: date={$receipt['date']}, message_id={$messageId}");
 
         return 'success';
+    }
+
+    private function isConfirmedKimuraOrder(array $page): bool
+    {
+        return $this->selectName($page, 'お店') === self::KIMURA_SHOP
+            && in_array($this->selectName($page, '状況'), ['注文済', '受付済'], true)
+            && trim((string) $this->urlValue($page, '注文確認メール')) !== '';
     }
 
     /**
