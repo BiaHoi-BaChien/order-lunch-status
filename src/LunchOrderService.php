@@ -319,14 +319,18 @@ final class LunchOrderService
             throw new RuntimeException("受付メールに対応する注文レコードなし: date={$receipt['date']}");
         }
 
+        $status = $this->selectName($page, '状況');
+        if ($isKimura && !$this->isConfirmedKimuraOrder($page)) {
+            throw new RuntimeException("RAMEN KIMURA受付メールに対応する注文確認が未処理です: date={$receipt['date']}");
+        }
+
         $url = $this->gmail->messageUrl($messageId);
         $currentUrl = $this->urlValue($page, '受付確認メール');
-        if ($currentUrl === $url && $this->selectName($page, '状況') === '受付済') {
+        if ($currentUrl === $url && $status === '受付済') {
             $this->logger->info("受付確認メールは既に処理済みのためスキップ: date={$receipt['date']}, message_id={$messageId}");
             return 'skipped';
         }
 
-        $status = $this->selectName($page, '状況');
         if (in_array($status, ['未注文', '利用しない'], true)) {
             $this->logger->warn("注文済でないレコードを受付済に更新: date={$receipt['date']}, current_status={$status}");
         }
@@ -339,6 +343,13 @@ final class LunchOrderService
         $this->logger->info("注文受付メール処理成功: date={$receipt['date']}, message_id={$messageId}");
 
         return 'success';
+    }
+
+    private function isConfirmedKimuraOrder(array $page): bool
+    {
+        return $this->selectName($page, 'お店') === self::KIMURA_SHOP
+            && in_array($this->selectName($page, '状況'), ['注文済', '受付済'], true)
+            && trim((string) $this->urlValue($page, '注文確認メール')) !== '';
     }
 
     /**
