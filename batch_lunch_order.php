@@ -61,6 +61,7 @@ try {
     $config['matsuya_mail_order_from'] = requireConfigValue($config, 'matsuya_mail_order_from', 'MAIL_MATSUYA_ORDER_FROM');
     $config['matsuya_mail_receipt_from'] = requireConfigValue($config, 'matsuya_mail_receipt_from', 'MAIL_MATSUYA_RECEIPT_FROM');
     $config['ramen_kimura_mail_order_from'] = requireConfigValue($config, 'ramen_kimura_mail_order_from', 'MAIL_RAMEN_KIMURA_ORDER_FROM');
+    $config['ramen_kimura_mail_receipt_from'] = requireConfigValue($config, 'ramen_kimura_mail_receipt_from', 'MAIL_RAMEN_KIMURA_RECEIPT_FROM');
 
     $gmail = new GmailClient(
         $config['gmail_user_id'],

@@ -28,6 +28,8 @@ $settingGroups = [
     'RAMEN KIMURA' => [
         'MAIL_RAMEN_KIMURA_ORDER_FROM' => ['label' => '注文確認メールの送信元', 'type' => 'text'],
         'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => ['label' => '注文確認メールの件名', 'type' => 'text'],
+        'MAIL_RAMEN_KIMURA_RECEIPT_FROM' => ['label' => '受付確認メールの送信元（|区切りで複数指定可）', 'type' => 'text'],
+        'MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT' => ['label' => '受付確認メールの件名', 'type' => 'text'],
     ],
 ];
 
@@ -38,6 +40,8 @@ $defaults = [
     'MAIL_MATSUYA_RECEIPT_SUBJECT' => '【松屋】お弁当注文受付確認',
     'MAIL_RAMEN_KIMURA_ORDER_FROM' => 'tobe.kimura@gmail.com',
     'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => '【お弁当注文確認】',
+    'MAIL_RAMEN_KIMURA_RECEIPT_FROM' => 'tobe.kimura@gmail.com',
+    'MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT' => '【弁当注文】ご注文が確定しました（ご入金を確認しました）',
     'MAIL_MATSUYA_FIELD_DATE_LABELS' => implode('|', MailParser::DEFAULT_DATE_LABELS),
     'MAIL_MATSUYA_FIELD_TICKET_LABELS' => implode('|', MailParser::DEFAULT_TICKET_LABELS),
     'MAIL_MATSUYA_FIELD_ITEM_LABELS' => implode('|', MailParser::DEFAULT_ITEM_LABELS),

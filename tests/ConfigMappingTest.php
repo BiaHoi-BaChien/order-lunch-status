@@ -8,6 +8,8 @@ putenv('MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS=カレーの種類|ソースの種
 putenv('MAIL_MATSUYA_RECEIPT_FROM=receipts@example.com');
 putenv('MAIL_RAMEN_KIMURA_ORDER_FROM=kimura@example.com');
 putenv('MAIL_RAMEN_KIMURA_ORDER_SUBJECT=KIMURA注文確認');
+putenv('MAIL_RAMEN_KIMURA_RECEIPT_FROM=receipt-a@example.com|receipt-b@example.com');
+putenv('MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT=KIMURA受付確認');
 putenv('GMAIL_MAX_MESSAGES_PER_RUN=75');
 putenv('CURL_CA_BUNDLE=');
 
@@ -24,6 +26,8 @@ assertSame(['カレーの種類', 'ソースの種類'], $config['mail_parser'][
 assertSame('receipts@example.com', $config['matsuya_mail_receipt_from'] ?? null);
 assertSame('kimura@example.com', $config['ramen_kimura_mail_order_from'] ?? null);
 assertSame('KIMURA注文確認', $config['ramen_kimura_mail_order_subject'] ?? null);
+assertSame('receipt-a@example.com|receipt-b@example.com', $config['ramen_kimura_mail_receipt_from'] ?? null);
+assertSame('KIMURA受付確認', $config['ramen_kimura_mail_receipt_subject'] ?? null);
 assertSame(75, $config['gmail_max_messages_per_run'] ?? null);
 
 echo "Config mapping test passed\n";

@@ -259,6 +259,51 @@ $receipt = $parser->parseReceipt([
 
 assertSame('2026-05-08', $receipt['date']);
 
+$kimuraReceiptBody = <<<TEXT
+保護者さま
+
+ご入金を確認し、下記のご注文が確定しました。
+
+・お子様の氏名：****
+・お届け日：2026/08/25
+・メニュー：チャーハン唐揚げ弁当 80,000VND
+・お支払い額：80,000 VND
+
+当日、学校へお届けいたします。
+よろしくお願いいたします。
+
+RAMEN KIMURA
+TEXT;
+$kimuraReceipt = $parser->parseKimuraReceipt([
+    'payload' => [
+        'mimeType' => 'text/plain',
+        'body' => ['data' => base64Url($kimuraReceiptBody)],
+    ],
+]);
+assertSame('2026-08-25', $kimuraReceipt['date']);
+
+$kimuraReceiptWithSpaces = $parser->parseKimuraReceipt([
+    'payload' => [
+        'mimeType' => 'text/plain',
+        'body' => ['data' => base64Url('お届け日 ： ２０２６ / ８ / ２５')],
+    ],
+]);
+assertSame('2026-08-25', $kimuraReceiptWithSpaces['date']);
+
+foreach (['お届け日：2026/02/30', 'ご注文が確定しました。'] as $invalidKimuraReceiptBody) {
+    try {
+        $parser->parseKimuraReceipt([
+            'payload' => [
+                'mimeType' => 'text/plain',
+                'body' => ['data' => base64Url($invalidKimuraReceiptBody)],
+            ],
+        ]);
+        throw new RuntimeException('Invalid RAMEN KIMURA receipt date was not rejected');
+    } catch (RuntimeException $e) {
+        assertSame(true, str_contains($e->getMessage(), 'RAMEN KIMURA受付メール'));
+    }
+}
+
 $receiptWithNoise = $parser->parseReceipt([
     'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
     'payload' => [

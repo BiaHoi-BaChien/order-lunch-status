@@ -10,12 +10,14 @@ $orderAuthentication = strpos($source, "assertAuthentic(\$message, (string) \$th
 $orderParsing = strpos($source, 'parseOrderConfirmation($message)');
 $kimuraAuthentication = strpos($source, "assertAuthentic(\$message, (string) \$this->config['ramen_kimura_mail_order_from'])");
 $kimuraParsing = strpos($source, 'parseKimuraOrderConfirmation($message)');
-$receiptAuthentication = strpos($source, "assertAuthentic(\$message, (string) \$this->config['matsuya_mail_receipt_from'])");
+$receiptAuthentication = strpos($source, 'assertAuthentic($message, $expectedSender)');
 $receiptParsing = strpos($source, 'parseReceipt($message)');
+$kimuraReceiptParsing = strpos($source, 'parseKimuraReceipt($message)');
 
 assertBefore($orderAuthentication, $orderParsing, '注文確認メール');
 assertBefore($kimuraAuthentication, $kimuraParsing, 'RAMEN KIMURA注文確認メール');
 assertBefore($receiptAuthentication, $receiptParsing, '受付確認メール');
+assertBefore($receiptAuthentication, $kimuraReceiptParsing, 'RAMEN KIMURA受付確認メール');
 
 $service = (new ReflectionClass(LunchOrderService::class))->newInstanceWithoutConstructor();
 (new ReflectionProperty(LunchOrderService::class, 'config'))->setValue($service, [
@@ -28,6 +30,13 @@ $query = (new ReflectionMethod(LunchOrderService::class, 'gmailSearchQuery'))->i
     'receipt-a@example.com｜receipt-b@example.com'
 );
 assertSame('{from:receipt-a@example.com from:receipt-b@example.com} subject:"受付確認" newer_than:7d', $query);
+
+$query = (new ReflectionMethod(LunchOrderService::class, 'gmailSearchQuery'))->invoke(
+    $service,
+    'KIMURA受付確認',
+    ' receipt-a@example.com | | receipt-b@example.com '
+);
+assertSame('{from:receipt-a@example.com from:receipt-b@example.com} subject:"KIMURA受付確認" newer_than:7d', $query);
 
 echo "LunchOrderService security test passed\n";
 

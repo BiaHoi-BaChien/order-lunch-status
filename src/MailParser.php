@@ -172,6 +172,25 @@ final class MailParser
         ];
     }
 
+    /**
+     * @return array{date:string,warn_previous_year:bool}
+     */
+    public function parseKimuraReceipt(array $message): array
+    {
+        $text = mb_convert_kana($this->extractText($message), 'n', 'UTF-8');
+        if (preg_match('/お届け日\s*[:：]\s*(\d{4})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/u', $text, $date) !== 1) {
+            throw new RuntimeException('RAMEN KIMURA受付メールのお届け日を抽出できません');
+        }
+        if (!checkdate((int) $date[2], (int) $date[3], (int) $date[1])) {
+            throw new RuntimeException("RAMEN KIMURA受付メールのお届け日が実在しません: {$date[0]}");
+        }
+
+        return [
+            'date' => sprintf('%04d-%02d-%02d', (int) $date[1], (int) $date[2], (int) $date[3]),
+            'warn_previous_year' => false,
+        ];
+    }
+
     public function extractText(array $message): string
     {
         $payload = $message['payload'] ?? null;

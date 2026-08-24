@@ -48,6 +48,7 @@ NOTION_TICKET_DATA_SOURCE_ID=
 - 注文確認メールは、対象日の状況が `注文済` または `受付済` ならスキップします。
 - 注文受付メールは、日付で対象レコードを探して `受付済` と受付確認メールURLを更新します。
 - RAMEN KIMURAの注文確認メールは、`.env` に設定した送信元と件名で検索し、店舗・品名・合計金額・注文確認メールURLを更新して、メール本文内の埋め込みまたは外部QR画像をページ本文へ追加します。QR画像がない場合も注文更新は継続します。
+- RAMEN KIMURAの注文受付メールは、本文の `お届け日` で対象レコードを探して `受付済` と受付確認メールURLを更新します。
 - 1件のメールでエラーが出ても、他のメール処理は継続します。
 - 1回の起動で処理対象にするGmailメッセージは `GMAIL_MAX_MESSAGES_PER_RUN`（既定100件）までに制限します。
 - 同じ設置先でバッチが重複起動した場合、後から起動した処理は安全にスキップします。
@@ -63,6 +64,8 @@ MAIL_MATSUYA_RECEIPT_FROM=送信元アドレス1|送信元アドレス2
 MAIL_MATSUYA_RECEIPT_SUBJECT=【松屋】お弁当注文受付確認
 MAIL_RAMEN_KIMURA_ORDER_FROM=tobe.kimura@gmail.com
 MAIL_RAMEN_KIMURA_ORDER_SUBJECT=【お弁当注文確認】
+MAIL_RAMEN_KIMURA_RECEIPT_FROM=tobe.kimura@gmail.com
+MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT=【弁当注文】ご注文が確定しました（ご入金を確認しました）
 GMAIL_PROCESSED_LABEL_NAME=order-lunch-status-processed
 MAIL_MATSUYA_FIELD_DATE_LABELS=お子様がお弁当を召し上がる日付を記載してください|お弁当を召し上がる日付
 MAIL_MATSUYA_FIELD_TICKET_LABELS=お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー|お弁当ナンバー|お弁当番号
@@ -76,7 +79,7 @@ MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_JSON=[]
 MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
-複数の質問文、品名候補、`MAIL_MATSUYA_RECEIPT_FROM` の送信元アドレスは `|` 区切りで指定します。`MAIL_MATSUYA_RECEIPT_FROM` を複数指定した場合はOR条件で検索・照合します（全角の `｜` も使用できます）。`MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS` に指定した質問項目は、回答がある場合に `質問項目: 回答` の形式で備考へ追記します。松屋とRAMEN KIMURAの各FROM設定は、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
+複数の質問文、品名候補、`MAIL_MATSUYA_RECEIPT_FROM` と `MAIL_RAMEN_KIMURA_RECEIPT_FROM` の送信元アドレスは `|` 区切りで指定します。受付メールの送信元を複数指定した場合はOR条件で検索・照合します（全角の `｜` も使用できます）。`MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS` に指定した質問項目は、回答がある場合に `質問項目: 回答` の形式で備考へ追記します。松屋とRAMEN KIMURAの各FROM設定は、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
 
 `GMAIL_PROCESSED_LABEL_NAME` のラベルがGmailに存在しない場合は、初回のラベル付与時に自動作成します。既存の `gmail.readonly` トークンではラベル付与できないため、古い `credentials/gmail_token.json` を削除し、`php gmail_auth.php` を再実行して `gmail.modify` の権限でトークンを作り直してください。
 
