@@ -80,10 +80,7 @@ final class LunchOrderService
             }
         }
 
-        $matsuyaReceiptSearchLimit = $remainingMessageBudget > 0
-            ? max(1, intdiv($remainingMessageBudget, 2))
-            : 0;
-        $kimuraReceiptSearchLimit = $remainingMessageBudget - $matsuyaReceiptSearchLimit;
+        [$matsuyaReceiptSearchLimit, $kimuraReceiptSearchLimit] = $this->receiptSearchLimits($remainingMessageBudget);
         $receiptMessages = $matsuyaReceiptSearchLimit > 0
             ? array_map(static fn (array $message): array => $message + ['shop' => 'default'], $this->gmail->searchMessages($this->gmailSearchQuery(
                 (string) ($this->config['matsuya_mail_receipt_subject'] ?? '【松屋】お弁当注文受付確認'),
@@ -180,6 +177,49 @@ final class LunchOrderService
         }
 
         return implode(' ', $terms);
+    }
+
+    /**
+     * @return array{int, int}
+     */
+    private function receiptSearchLimits(int $budget): array
+    {
+        if ($budget < 1) {
+            return [0, 0];
+        }
+
+        $each = intdiv($budget, 2);
+        if ($budget % 2 === 0) {
+            return [$each, $each];
+        }
+
+        return $this->kimuraGetsExtraReceiptSlot()
+            ? [$each, $each + 1]
+            : [$each + 1, $each];
+    }
+
+    private function kimuraGetsExtraReceiptSlot(): bool
+    {
+        $path = (string) ($this->config['gmail_receipt_turn_path'] ?? '');
+        if ($path === '') {
+            throw new RuntimeException('受付メール検索順の状態ファイルが未設定です');
+        }
+
+        $next = 'kimura';
+        if (is_file($path)) {
+            $contents = file_get_contents($path);
+            if ($contents === false) {
+                throw new RuntimeException("受付メール検索順の状態ファイルを読み込めません: {$path}");
+            }
+            $next = trim($contents);
+        }
+
+        $kimuraGetsExtraSlot = $next !== 'matsuya';
+        if (file_put_contents($path, $kimuraGetsExtraSlot ? 'matsuya' : 'kimura', LOCK_EX) === false) {
+            throw new RuntimeException("受付メール検索順の状態ファイルを更新できません: {$path}");
+        }
+
+        return $kimuraGetsExtraSlot;
     }
 
     private function labelProcessedMessage(string $messageId): bool

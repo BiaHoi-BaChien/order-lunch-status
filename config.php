@@ -245,6 +245,7 @@ return [
     'timezone' => $timezone,
     'lookback_days' => envPositiveInt('LOOKBACK_DAYS', 7, 100),
     'gmail_max_messages_per_run' => envPositiveInt('GMAIL_MAX_MESSAGES_PER_RUN', 100, 1000),
+    'gmail_receipt_turn_path' => __DIR__ . '/logs/gmail_receipt_turn.state',
     'initial_record_days' => envPositiveInt('INITIAL_RECORD_DAYS', 30, 100),
     'shop_name' => envValue('SHOP_NAME', '松屋'),
     'gmail_credentials_path' => projectPath(envValue('GMAIL_CREDENTIALS_PATH', 'credentials/gmail_credentials.json')),

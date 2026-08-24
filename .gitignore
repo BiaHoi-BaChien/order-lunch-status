@@ -2,3 +2,4 @@
 credentials/*.json
 !credentials/.gitkeep
 logs/*.log
+logs/*.state
