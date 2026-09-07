@@ -60,6 +60,38 @@ $numericTicketOrder = $parser->parseOrderConfirmation([
 
 assertSame('1234', $numericTicketOrder['ticket_no']);
 
+$newMatsuyaBody = <<<TEXT
+※このメールはシステムからの自動送信です。
+
+お弁当のご注文を以下の通り受け付けました。
+内容にお間違いがないかご確認ください。
+
+【1人目】
+・学年 / クラス: 小5 / 3組
+・氏名（日本語）: 杉山福
+・氏名（ローマ字）: SUGIYAMA FUKU
+
+[2026-09-09]
+・お弁当券ナンバー: B10788
+・メニュー: キムチ牛めし　B券
+・サイズ: S
+・カスタマイズ: ネギ抜き,つゆ多め
+・その他の要望: なし
+TEXT;
+$newMatsuyaOrder = $parser->parseOrderConfirmation([
+    'internalDate' => (string) (strtotime('2026-09-07 19:04:00') * 1000),
+    'payload' => [
+        'mimeType' => 'text/plain',
+        'body' => ['data' => base64Url($newMatsuyaBody)],
+    ],
+]);
+
+assertSame('2026-09-09', $newMatsuyaOrder['date']);
+assertSame('B10788', $newMatsuyaOrder['ticket_no']);
+assertSame('キムチ牛めし B券', $newMatsuyaOrder['item_name']);
+assertSame('S', $newMatsuyaOrder['size']);
+assertSame('なし、カスタマイズ: ネギ抜き,つゆ多め', $newMatsuyaOrder['note']);
+
 $kimuraBody = <<<TEXT
 ご注文ありがとうございます。
 

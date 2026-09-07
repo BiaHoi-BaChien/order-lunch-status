@@ -75,14 +75,14 @@ final class MailParser
 
         $dateLabels = $this->settings['date_labels'];
         $dateAnswer = $this->answerFromMap($htmlAnswers, $dateLabels) ?? $this->answerFor($text, $dateLabels);
-        if ($dateAnswer === null && preg_match('/\d{1,2}月\d{1,2}日(?:[（(][月火水木金土日][）)])?/u', $text, $m)) {
+        if ($dateAnswer === null && preg_match('/\d{4}-\d{1,2}-\d{1,2}|\d{1,2}月\d{1,2}日(?:[（(][月火水木金土日][）)])?/u', $text, $m)) {
             $dateAnswer = $m[0];
         }
         if ($dateAnswer === null) {
             throw new RuntimeException('注文日付を抽出できません');
         }
 
-        $ticketLabels = $this->settings['ticket_labels'];
+        $ticketLabels = [...$this->settings['ticket_labels'], 'お弁当券ナンバー'];
         $ticketAnswer = $this->answerFromMap($htmlAnswers, $ticketLabels) ?? $this->answerFor($text, $ticketLabels);
         $ticketNo = trim((string) $ticketAnswer);
         if ($ticketNo === '') {
@@ -100,7 +100,7 @@ final class MailParser
         }
         $size = strtoupper(($sizeMatch[1] ?? '') !== '' ? $sizeMatch[1] : $sizeMatch[2]);
 
-        $noteLabels = $this->settings['note_labels'];
+        $noteLabels = [...$this->settings['note_labels'], 'その他の要望'];
         $note = $this->answerFromMap($htmlAnswers, $noteLabels) ?? ($htmlAnswers !== [] ? '' : ($this->answerFor($text, $noteLabels) ?? ''));
         foreach ($this->extractNoteAppendFields($text, $htmlAnswers) as $label => $answer) {
             $note = $this->appendNote($note, $label . ': ' . $answer);
@@ -379,6 +379,13 @@ final class MailParser
     public function parseJapaneseDate(string $value, DateTimeImmutable $receivedAt): string
     {
         $normalizedValue = mb_convert_kana($value, 'a', 'UTF-8');
+        if (preg_match('/(\d{4})-(\d{1,2})-(\d{1,2})/u', $normalizedValue, $date) === 1) {
+            if (!checkdate((int) $date[2], (int) $date[3], (int) $date[1])) {
+                throw new RuntimeException("実在しない日付です: {$date[0]}");
+            }
+
+            return sprintf('%04d-%02d-%02d', (int) $date[1], (int) $date[2], (int) $date[3]);
+        }
         if (!preg_match('/(\d{1,2})月(\d{1,2})日/u', $normalizedValue, $m)) {
             throw new RuntimeException('注文日付を抽出できません');
         }
@@ -571,7 +578,7 @@ final class MailParser
     private function extractNoteAppendFields(string $text, array $htmlAnswers): array
     {
         $fields = [];
-        foreach ($this->settings['note_append_labels'] as $label) {
+        foreach ([...$this->settings['note_append_labels'], 'カスタマイズ'] as $label) {
             $answer = $this->answerFromMap($htmlAnswers, [$label]) ?? $this->answerFor($text, [$label]);
             if ($answer === null) {
                 continue;
