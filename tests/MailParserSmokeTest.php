@@ -7,58 +7,14 @@ require_once __DIR__ . '/../src/MailParser.php';
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 
 $parser = new MailParser();
-$sauceParser = new MailParser([
-    'known_items' => [
-        'ソース（味噌）かつ定食（B券：定食・丼）',
-    ],
-    'note_append_labels' => ['ソースの種類'],
-]);
 $mappedParser = new MailParser([
     'mapped_fields' => [
         [
-            'key' => 'curry_type',
-            'mail_labels' => ['カレーの種類'],
+            'key' => 'customization',
+            'mail_labels' => ['カスタマイズ'],
         ],
     ],
 ]);
-
-$orderBody = implode("\n", [
-    'お子様がお弁当を召し上がる日付を記載してください。',
-    '5月8日（金）',
-    'お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー',
-    'B13495',
-    '注文したお弁当',
-    'キムチ牛めし（B券：定食・丼）',
-    'ライスの量',
-    'M 200ｇ',
-    '備考',
-    '少なめ',
-]);
-
-$order = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/plain',
-        'body' => ['data' => base64Url($orderBody)],
-    ],
-]);
-
-assertSame('2026-05-08', $order['date']);
-assertSame('B13495', $order['ticket_no']);
-assertSame('キムチ牛めし（B券：定食・丼）', $order['item_name']);
-assertSame('M', $order['size']);
-assertSame('少なめ', $order['note']);
-
-$numericTicketBody = str_replace('B13495', '1234', $orderBody);
-$numericTicketOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/plain',
-        'body' => ['data' => base64Url($numericTicketBody)],
-    ],
-]);
-
-assertSame('1234', $numericTicketOrder['ticket_no']);
 
 $newMatsuyaBody = <<<TEXT
 ※このメールはシステムからの自動送信です。
@@ -92,6 +48,26 @@ assertSame('キムチ牛めし B券', $newMatsuyaOrder['item_name']);
 assertSame('S', $newMatsuyaOrder['size']);
 assertSame('なし、カスタマイズ: ネギ抜き,つゆ多め', $newMatsuyaOrder['note']);
 
+$mappedMatsuyaOrder = $mappedParser->parseOrderConfirmation([
+    'payload' => [
+        'mimeType' => 'text/plain',
+        'body' => ['data' => base64Url($newMatsuyaBody)],
+    ],
+]);
+assertSame('ネギ抜き,つゆ多め', $mappedMatsuyaOrder['mapped_fields']['customization'] ?? null);
+
+try {
+    $parser->parseOrderConfirmation([
+        'payload' => [
+            'mimeType' => 'text/plain',
+            'body' => ['data' => base64Url("お弁当を召し上がる日付\n9月9日（水）\nお弁当番号\nB10788")],
+        ],
+    ]);
+    throw new RuntimeException('旧形式の松屋注文確認メールを受理しました');
+} catch (RuntimeException $e) {
+    assertSame('注文日付を抽出できません', $e->getMessage());
+}
+
 $kimuraBody = <<<TEXT
 ご注文ありがとうございます。
 
@@ -115,171 +91,6 @@ $kimuraOrder = $parser->parseKimuraOrderConfirmation([
 assertSame('2026-08-19', $kimuraOrder['date']);
 assertSame('チャーハン唐揚げ弁当', $kimuraOrder['item_name']);
 assertSame('合計金額: 80000VND', $kimuraOrder['note']);
-
-
-$chickenCurryBody = str_replace('キムチ牛めし（B券：定食・丼）', 'チキンかつカレー（B券：定食・丼）', $orderBody);
-$chickenCurryOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/plain',
-        'body' => ['data' => base64Url($chickenCurryBody)],
-    ],
-]);
-
-assertSame('チキンかつカレー（B券：定食・丼）', $chickenCurryOrder['item_name']);
-
-
-$ticketWithFormNoiseBody = implode("\n", [
-    'お子様がお弁当を召し上がる日付を記載してください。',
-    '5月8日（金）',
-    'お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー',
-    'い。 *',
-    'B13495',
-    '注文したお弁当',
-    'キムチ牛めし（B券：定食・丼）',
-    'ライスの量',
-    'M 200ｇ',
-    '備考',
-    '少なめ',
-]);
-$ticketWithFormNoiseOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/plain',
-        'body' => ['data' => base64Url($ticketWithFormNoiseBody)],
-    ],
-]);
-
-assertSame('B13495', $ticketWithFormNoiseOrder['ticket_no']);
-
-$ticketWithImageAltNoiseBody = str_replace("い。 *", "説明のない画像", $ticketWithFormNoiseBody);
-$ticketWithImageAltNoiseOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/plain',
-        'body' => ['data' => base64Url($ticketWithImageAltNoiseBody)],
-    ],
-]);
-
-assertSame('B13495', $ticketWithImageAltNoiseOrder['ticket_no']);
-
-$ticketHtmlBody = <<<HTML
-<div><h2>お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバーを記載してください。<span aria-label="必須の質問"> *</span></h2><img alt="説明のない画像"></div><div><div><div style="white-space: pre-wrap;border-bottom: 1px dotted rgba(0,0,0,0.38);">B13495</div></div></div>
-<div><h2>お子様がお弁当を召し上がる日付を記載してください。</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">5月8日（金）</div></div>
-<div><h2>注文したお弁当</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">キムチ牛めし（B券：定食・丼）</div></div>
-<div><h2>ライスの量</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">M 200ｇ</div></div>
-<div><h2>備考</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">少なめ</div></div>
-HTML;
-$ticketHtmlOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/html',
-        'body' => ['data' => base64Url($ticketHtmlBody)],
-    ],
-]);
-
-assertSame('B13495', $ticketHtmlOrder['ticket_no']);
-assertSame('キムチ牛めし（B券：定食・丼）', $ticketHtmlOrder['item_name']);
-assertSame('M', $ticketHtmlOrder['size']);
-assertSame('少なめ', $ticketHtmlOrder['note']);
-
-$sizeWithDescriptionHtmlBody = str_replace('M 200ｇ', 'S ライス150ｇ 牛めしの具65ｇ相当', $ticketHtmlBody);
-$sizeWithDescriptionOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/html',
-        'body' => ['data' => base64Url($sizeWithDescriptionHtmlBody)],
-    ],
-]);
-
-assertSame('S', $sizeWithDescriptionOrder['size']);
-
-$emptyNoteHtmlBody = str_replace('少なめ', '', $ticketHtmlBody);
-$emptyNoteOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/html',
-        'body' => ['data' => base64Url($emptyNoteHtmlBody)],
-    ],
-]);
-
-assertSame('', $emptyNoteOrder['note']);
-
-$checkboxNoteHtmlBody = str_replace(
-    '<div><h2>備考</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">少なめ</div></div>',
-    '<div><h2>備考</h2></div><div><div><div role="checkbox" aria-checked="true" aria-label="つゆだく"></div><div role="checkbox" aria-checked="true" aria-label="ネギ抜き"></div></div></div>',
-    $ticketHtmlBody
-);
-$checkboxNoteOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/html',
-        'body' => ['data' => base64Url($checkboxNoteHtmlBody)],
-    ],
-]);
-
-assertSame('つゆだく、ネギ抜き', $checkboxNoteOrder['note']);
-
-$curryHtmlBody = <<<HTML
-<div><h2>お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバーを記載してください。</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">B13495</div></div>
-<div><h2>お子様がお弁当を召し上がる日付を記載してください。</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">5月8日（金）</div></div>
-<div><h2>注文したお弁当</h2></div><div><div role="radio" aria-checked="true" aria-label="チキンかつカレー（B券：定食・丼）"></div></div>
-<div><h2>定食・丼のライスの量</h2></div>
-<div>
-  <div><h2>カレーの種類を選択して下さい。</h2></div>
-  <div><div role="radio" aria-checked="true" aria-label="甘口（カレー粉由来の辛さがあるため、多少の辛さはあります）"></div></div>
-  <div><h2>ライスの量を選択してください。</h2></div>
-  <div><div role="radio" aria-checked="true" aria-label="S 150ｇ"></div></div>
-</div>
-<div><h2>備考</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">ネギ抜き</div></div>
-HTML;
-$curryOrder = $parser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/html',
-        'body' => ['data' => base64Url($curryHtmlBody)],
-    ],
-]);
-
-assertSame('チキンかつカレー（B券：定食・丼）', $curryOrder['item_name']);
-assertSame('S', $curryOrder['size']);
-assertSame('ネギ抜き、カレーの種類: 甘口（カレー粉由来の辛さがあるため、多少の辛さはあります）', $curryOrder['note']);
-
-
-$sauceHtmlBody = <<<HTML
-<div><h2>お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバーを記載してください。</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">B13495</div></div>
-<div><h2>お子様がお弁当を召し上がる日付を記載してください。</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">5月8日（金）</div></div>
-<div><h2>注文したお弁当</h2></div><div><div role="radio" aria-checked="true" aria-label="ソース（味噌）かつ定食（Ｂ券：定食・丼）"></div></div>
-<div><h2>定食・丼のライスの量</h2></div>
-<div>
-  <div><h2>ソースの種類を選択して下さい。</h2></div>
-  <div><div role="radio" aria-checked="true" aria-label="味噌ソース（八丁味噌使用）"></div></div>
-  <div><h2>ライスの量を選択してください。</h2></div>
-  <div><div role="radio" aria-checked="true" aria-label="M 200ｇ"></div></div>
-</div>
-<div><h2>備考</h2></div><div><div style="border-bottom: 1px dotted rgba(0,0,0,0.38);">キャベツ少なめ</div></div>
-HTML;
-$sauceOrder = $sauceParser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/html',
-        'body' => ['data' => base64Url($sauceHtmlBody)],
-    ],
-]);
-
-assertSame('ソース（味噌）かつ定食（B券：定食・丼）', $sauceOrder['item_name']);
-assertSame('M', $sauceOrder['size']);
-assertSame('キャベツ少なめ、ソースの種類: 味噌ソース（八丁味噌使用）', $sauceOrder['note']);
-
-$mappedCurryOrder = $mappedParser->parseOrderConfirmation([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/html',
-        'body' => ['data' => base64Url($curryHtmlBody)],
-    ],
-]);
-
-assertSame('甘口（カレー粉由来の辛さがあるため、多少の辛さはあります）', $mappedCurryOrder['mapped_fields']['curry_type'] ?? null);
 
 $receipt = $parser->parseReceipt([
     'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),

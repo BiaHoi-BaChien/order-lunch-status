@@ -10,4 +10,10 @@ foreach (["'松屋' => [", "'RAMEN KIMURA' => [", "'MAIL_RAMEN_KIMURA_ORDER_FROM
     }
 }
 
+foreach (['MAIL_MATSUYA_FIELD_DATE_LABELS', 'MAIL_MATSUYA_FIELD_TICKET_LABELS', 'MAIL_MATSUYA_FIELD_ITEM_LABELS', 'MAIL_MATSUYA_FIELD_SIZE_LABELS', 'MAIL_MATSUYA_FIELD_NOTE_LABELS', 'MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS', 'MAIL_MATSUYA_KNOWN_ITEMS'] as $obsolete) {
+    if (str_contains($source, $obsolete)) {
+        throw new RuntimeException("Assertion failed: obsolete setting {$obsolete} found");
+    }
+}
+
 echo "Mail settings layout test passed\n";

@@ -8,7 +8,7 @@ $path = sys_get_temp_dir() . '/order-lunch-status-env-' . bin2hex(random_bytes(6
 file_put_contents($path, implode(PHP_EOL, [
     'NOTION_API_KEY=secret_xxx',
     'MAIL_MATSUYA_ORDER_FROM=forms-receipts-noreply@google.com',
-    'MAIL_MATSUYA_FIELD_ITEM_LABELS=品名|メニュー',
+    'MAIL_MATSUYA_RECEIPT_FROM=receipt-a@example.com|receipt-b@example.com',
     '# comment',
     '',
 ]) . PHP_EOL);
@@ -16,18 +16,18 @@ file_put_contents($path, implode(PHP_EOL, [
 try {
     $values = EnvFileEditor::readValues($path);
     assertSame('forms-receipts-noreply@google.com', $values['MAIL_MATSUYA_ORDER_FROM'] ?? null);
-    assertSame(['品名', 'メニュー'], EnvFileEditor::envToList($values['MAIL_MATSUYA_FIELD_ITEM_LABELS'] ?? ''));
+    assertSame(['receipt-a@example.com', 'receipt-b@example.com'], EnvFileEditor::envToList($values['MAIL_MATSUYA_RECEIPT_FROM'] ?? ''));
 
     EnvFileEditor::updateValues($path, [
         'MAIL_MATSUYA_ORDER_FROM' => '',
-        'MAIL_MATSUYA_FIELD_ITEM_LABELS' => EnvFileEditor::listToEnv(['品名', '注文したお弁当', '']),
+        'MAIL_MATSUYA_RECEIPT_FROM' => EnvFileEditor::listToEnv(['receipt-a@example.com', 'receipt-c@example.com', '']),
         'MAIL_SETTINGS_TEST_VALUE' => 'pass#word',
     ]);
 
     $updated = EnvFileEditor::readValues($path);
     assertSame('secret_xxx', $updated['NOTION_API_KEY'] ?? null);
     assertSame('', $updated['MAIL_MATSUYA_ORDER_FROM'] ?? null);
-    assertSame('品名|注文したお弁当', $updated['MAIL_MATSUYA_FIELD_ITEM_LABELS'] ?? null);
+    assertSame('receipt-a@example.com|receipt-c@example.com', $updated['MAIL_MATSUYA_RECEIPT_FROM'] ?? null);
     assertSame('pass#word', $updated['MAIL_SETTINGS_TEST_VALUE'] ?? null);
 
     $content = (string) file_get_contents($path);

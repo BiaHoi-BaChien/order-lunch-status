@@ -55,7 +55,7 @@ NOTION_TICKET_DATA_SOURCE_ID=
 
 ## メール解析設定
 
-Gmail検索条件とGoogleフォーム回答欄の質問文は `.env` で変更できます。未設定の場合は現在の松屋お弁当フォーム向けの既定値を使用します。
+Gmail検索条件は `.env` で変更できます。松屋の注文確認メールは、新フォーマットの `[YYYY-MM-DD]`、`お弁当券ナンバー`、`メニュー`、`サイズ`、`カスタマイズ`、`その他の要望` を解析します。
 
 ```env
 MAIL_MATSUYA_ORDER_FROM=forms-receipts-noreply@google.com
@@ -67,30 +67,23 @@ MAIL_RAMEN_KIMURA_ORDER_SUBJECT=【お弁当注文確認】
 MAIL_RAMEN_KIMURA_RECEIPT_FROM=tobe.kimura@gmail.com
 MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT=【弁当注文】ご注文が確定しました（ご入金を確認しました）
 GMAIL_PROCESSED_LABEL_NAME=order-lunch-status-processed
-MAIL_MATSUYA_FIELD_DATE_LABELS=お子様がお弁当を召し上がる日付を記載してください|お弁当を召し上がる日付
-MAIL_MATSUYA_FIELD_TICKET_LABELS=お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー|お弁当ナンバー|お弁当番号
-MAIL_MATSUYA_FIELD_ITEM_LABELS=品名|注文したお弁当|お弁当の種類|メニュー|アレルギー物質
-MAIL_MATSUYA_FIELD_SIZE_LABELS=ライスの量|ご飯の量|サイズ
-MAIL_MATSUYA_FIELD_NOTE_LABELS=備考|ご要望
-MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS=カレーの種類|ソースの種類
-MAIL_MATSUYA_KNOWN_ITEMS=牛めし（A券：牛めし）|キムチ牛めし（B券：定食・丼）|唐揚げ定食（B券：定食・丼）|ふわ玉あんかけ牛めし（B券：定食・丼）|ふわとろあんかけ牛めし（B券：定食・丼）|チキンかつカレー（B券：定食・丼）|ソース（味噌）かつ定食（B券：定食・丼）
 MAIL_SETTINGS_PASSWORD_HASH=
 MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_JSON=[]
 MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
-複数の質問文、品名候補、`MAIL_MATSUYA_RECEIPT_FROM` と `MAIL_RAMEN_KIMURA_RECEIPT_FROM` の送信元アドレスは `|` 区切りで指定します。受付メールの送信元を複数指定した場合はOR条件で検索・照合します（全角の `｜` も使用できます）。`MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS` に指定した質問項目は、回答がある場合に `質問項目: 回答` の形式で備考へ追記します。松屋とRAMEN KIMURAの各FROM設定は、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
+`MAIL_MATSUYA_RECEIPT_FROM` と `MAIL_RAMEN_KIMURA_RECEIPT_FROM` の送信元アドレスは `|` 区切りで複数指定できます。複数指定した場合はOR条件で検索・照合します（全角の `｜` も使用できます）。松屋とRAMEN KIMURAの各FROM設定は、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
 
 `GMAIL_PROCESSED_LABEL_NAME` のラベルがGmailに存在しない場合は、初回のラベル付与時に自動作成します。既存の `gmail.readonly` トークンではラベル付与できないため、古い `credentials/gmail_token.json` を削除し、`php gmail_auth.php` を再実行して `gmail.modify` の権限でトークンを作り直してください。
 
-追加のGoogleフォーム回答をNotionプロパティへ反映する場合は、`MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_JSON` または `MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH` でJSON配列を指定します。既存の注文更新payloadは固定のまま維持し、ここで指定した追加プロパティだけを更新に加えます。既存payloadと同じNotionプロパティ名を指定した場合は既存payloadを優先します。
+松屋の新しい注文確認メールに含まれる追加項目をNotionプロパティへ反映する場合は、`MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_JSON` または `MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH` でJSON配列を指定します。既存の注文更新payloadは固定のまま維持し、ここで指定した追加プロパティだけを更新に加えます。既存payloadと同じNotionプロパティ名を指定した場合は既存payloadを優先します。
 
 ```json
 [
   {
-    "key": "curry_type",
-    "mail_labels": ["カレーの種類"],
-    "notion_property": "カレーの種類",
+    "key": "customization",
+    "mail_labels": ["カスタマイズ"],
+    "notion_property": "カスタマイズ",
     "notion_type": "select"
   }
 ]
@@ -100,7 +93,7 @@ MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH=
 
 ### メール解析設定のWeb編集
 
-`mail_settings.php` をブラウザで開くと、上記のメール解析設定を松屋とRAMEN KIMURAの店舗別にWeb画面から編集できます。リスト項目は1行1項目で入力し、保存時に `.env` へ `|` 区切りで書き戻します。その他の `.env` 項目は保持します。
+`mail_settings.php` をブラウザで開くと、メールの送信元と件名を松屋とRAMEN KIMURAの店舗別に編集できます。その他の `.env` 項目は保持します。
 
 `mail_settings.php` を使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD_HASH` を設定してください。未設定の場合はlocalhostを含むすべてのアクセスを拒否します。
 

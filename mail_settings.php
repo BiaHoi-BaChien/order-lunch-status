@@ -5,7 +5,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/src/EnvFileEditor.php';
 require_once __DIR__ . '/src/MailSettingsAuth.php';
 require_once __DIR__ . '/src/MailSettingsLoginLimiter.php';
-require_once __DIR__ . '/src/MailParser.php';
 
 session_start();
 header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
@@ -13,23 +12,16 @@ header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
 $envPath = __DIR__ . '/.env';
 $settingGroups = [
     '松屋' => [
-        'MAIL_MATSUYA_ORDER_FROM' => ['label' => '注文確認メールの送信元', 'type' => 'text'],
-        'MAIL_MATSUYA_ORDER_SUBJECT' => ['label' => '注文確認メールの件名', 'type' => 'text'],
-        'MAIL_MATSUYA_RECEIPT_FROM' => ['label' => '受付確認メールの送信元（|区切りで複数指定可）', 'type' => 'text'],
-        'MAIL_MATSUYA_RECEIPT_SUBJECT' => ['label' => '受付確認メールの件名', 'type' => 'text'],
-        'MAIL_MATSUYA_FIELD_DATE_LABELS' => ['label' => '日付欄の質問文', 'type' => 'list'],
-        'MAIL_MATSUYA_FIELD_TICKET_LABELS' => ['label' => 'お弁当番号欄の質問文', 'type' => 'list'],
-        'MAIL_MATSUYA_FIELD_ITEM_LABELS' => ['label' => '品名欄の質問文', 'type' => 'list'],
-        'MAIL_MATSUYA_FIELD_SIZE_LABELS' => ['label' => 'サイズ欄の質問文', 'type' => 'list'],
-        'MAIL_MATSUYA_FIELD_NOTE_LABELS' => ['label' => '備考欄の質問文', 'type' => 'list'],
-        'MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS' => ['label' => '備考へ追記する質問文', 'type' => 'list'],
-        'MAIL_MATSUYA_KNOWN_ITEMS' => ['label' => '認識する品名候補', 'type' => 'list'],
+        'MAIL_MATSUYA_ORDER_FROM' => '注文確認メールの送信元',
+        'MAIL_MATSUYA_ORDER_SUBJECT' => '注文確認メールの件名',
+        'MAIL_MATSUYA_RECEIPT_FROM' => '受付確認メールの送信元（|区切りで複数指定可）',
+        'MAIL_MATSUYA_RECEIPT_SUBJECT' => '受付確認メールの件名',
     ],
     'RAMEN KIMURA' => [
-        'MAIL_RAMEN_KIMURA_ORDER_FROM' => ['label' => '注文確認メールの送信元', 'type' => 'text'],
-        'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => ['label' => '注文確認メールの件名', 'type' => 'text'],
-        'MAIL_RAMEN_KIMURA_RECEIPT_FROM' => ['label' => '受付確認メールの送信元（|区切りで複数指定可）', 'type' => 'text'],
-        'MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT' => ['label' => '受付確認メールの件名', 'type' => 'text'],
+        'MAIL_RAMEN_KIMURA_ORDER_FROM' => '注文確認メールの送信元',
+        'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => '注文確認メールの件名',
+        'MAIL_RAMEN_KIMURA_RECEIPT_FROM' => '受付確認メールの送信元（|区切りで複数指定可）',
+        'MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT' => '受付確認メールの件名',
     ],
 ];
 
@@ -42,13 +34,6 @@ $defaults = [
     'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => '【お弁当注文確認】',
     'MAIL_RAMEN_KIMURA_RECEIPT_FROM' => 'tobe.kimura@gmail.com',
     'MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT' => '【弁当注文】ご注文が確定しました（ご入金を確認しました）',
-    'MAIL_MATSUYA_FIELD_DATE_LABELS' => implode('|', MailParser::DEFAULT_DATE_LABELS),
-    'MAIL_MATSUYA_FIELD_TICKET_LABELS' => implode('|', MailParser::DEFAULT_TICKET_LABELS),
-    'MAIL_MATSUYA_FIELD_ITEM_LABELS' => implode('|', MailParser::DEFAULT_ITEM_LABELS),
-    'MAIL_MATSUYA_FIELD_SIZE_LABELS' => implode('|', MailParser::DEFAULT_SIZE_LABELS),
-    'MAIL_MATSUYA_FIELD_NOTE_LABELS' => implode('|', MailParser::DEFAULT_NOTE_LABELS),
-    'MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS' => implode('|', MailParser::DEFAULT_NOTE_APPEND_LABELS),
-    'MAIL_MATSUYA_KNOWN_ITEMS' => implode('|', MailParser::DEFAULT_KNOWN_ITEMS),
 ];
 
 $message = null;
@@ -115,16 +100,7 @@ try {
 
         $updates = [];
         foreach ($settingGroups as $settings) {
-            foreach ($settings as $key => $meta) {
-                if ($meta['type'] === 'list') {
-                    $postedItems = $_POST[$key] ?? [];
-                    if (!is_array($postedItems)) {
-                        $postedItems = [];
-                    }
-                    $updates[$key] = EnvFileEditor::listToEnv(array_map('strval', $postedItems));
-                    continue;
-                }
-
+            foreach ($settings as $key => $_label) {
                 $updates[$key] = trim((string) ($_POST[$key] ?? ''));
             }
         }
@@ -173,7 +149,7 @@ function renderLogin(string $csrf, ?string $error): void
 }
 
 /**
- * @param array<string, array<string, array{label:string,type:string}>> $settingGroups
+ * @param array<string, array<string, string>> $settingGroups
  * @param array<string, string> $values
  */
 function renderSettings(array $settingGroups, array $values, string $csrf, ?string $message, ?string $error): void
@@ -193,24 +169,11 @@ function renderSettings(array $settingGroups, array $values, string $csrf, ?stri
     foreach ($settingGroups as $group => $settings) {
         echo '<section class="settings-group">';
         echo '<h2>' . h($group) . '</h2>';
-        foreach ($settings as $key => $meta) {
+        foreach ($settings as $key => $label) {
             $value = $values[$key] ?? '';
             echo '<div class="setting">';
-            echo '<div><h3>' . h($meta['label']) . '</h3><code>' . h($key) . '</code></div>';
-
-            if ($meta['type'] === 'list') {
-                echo '<div class="list">';
-                $items = EnvFileEditor::envToList($value);
-                $items[] = '';
-                foreach ($items as $item) {
-                    echo '<input type="text" name="' . h($key) . '[]" value="' . h($item) . '" placeholder="追加する値">';
-                }
-                echo '</div>';
-                echo '<p class="hint">空欄は保存時に無視されます。複数項目は .env では | 区切りで保存します。</p>';
-            } else {
-                echo '<input type="text" name="' . h($key) . '" value="' . h($value) . '">';
-            }
-
+            echo '<div><h3>' . h($label) . '</h3><code>' . h($key) . '</code></div>';
+            echo '<input type="text" name="' . h($key) . '" value="' . h($value) . '">';
             echo '</div>';
         }
         echo '</section>';
@@ -239,8 +202,6 @@ function renderHeader(string $title): void
         .setting{padding:18px 0;border-bottom:1px solid #d9e2ec}
         label{display:grid;gap:8px;font-weight:600}
         input{box-sizing:border-box;width:100%;border:1px solid #bcccdc;border-radius:6px;padding:10px 12px;font:inherit;background:#fff}
-        .list{display:grid;gap:8px;margin-top:14px}
-        .hint{margin:10px 0 0;color:#627d98;font-size:13px}
         .actions{position:sticky;bottom:0;background:rgba(246,247,249,.94);padding:16px 0;border-top:1px solid #d9e2ec}
         button{background:#0f609b;color:#fff;border:0;border-radius:6px;padding:10px 18px;font-weight:700;cursor:pointer}
         .alert{border-radius:6px;padding:12px 14px}
