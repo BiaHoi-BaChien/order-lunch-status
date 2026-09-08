@@ -4,64 +4,17 @@ declare(strict_types=1);
 
 final class MailParser
 {
-    public const DEFAULT_DATE_LABELS = [
-        'お子様がお弁当を召し上がる日付を記載してください',
-        'お弁当を召し上がる日付',
-    ];
-    public const DEFAULT_TICKET_LABELS = [
-        'お手持ちのお弁当券に記載してある数字4ケタのお弁当ナンバー',
-        'お弁当ナンバー',
-        'お弁当番号',
-    ];
-    public const DEFAULT_ITEM_LABELS = [
-        '品名',
-        '注文したお弁当',
-        'お弁当の種類',
-        'メニュー',
-        'アレルギー物質',
-    ];
-    public const DEFAULT_SIZE_LABELS = [
-        'ライスの量',
-        'ご飯の量',
-        'サイズ',
-    ];
-    public const DEFAULT_NOTE_LABELS = [
-        '備考',
-        'ご要望',
-    ];
-    public const DEFAULT_NOTE_APPEND_LABELS = [
-        'カレーの種類',
-    ];
-    public const DEFAULT_KNOWN_ITEMS = [
-        '牛めし（A券：牛めし）',
-        'キムチ牛めし（B券：定食・丼）',
-        '唐揚げ定食（B券：定食・丼）',
-        'ふわ玉あんかけ牛めし（B券：定食・丼）',
-        'ふわとろあんかけ牛めし（B券：定食・丼）',
-        'チキンかつカレー（B券：定食・丼）',
-        'ソース（味噌）かつ定食（B券：定食・丼）',
-    ];
-
     /**
-     * @var array{date_labels:list<string>,ticket_labels:list<string>,item_labels:list<string>,size_labels:list<string>,note_labels:list<string>,note_append_labels:list<string>,known_items:list<string>,mapped_fields:list<array{key:string,mail_labels:list<string>}>}
+     * @var list<array{key:string,mail_labels:list<string>}>
      */
-    private array $settings;
+    private array $mappedFields;
 
     /**
      * @param array<string, mixed> $settings
      */
     public function __construct(array $settings = [])
     {
-        $this->settings = [
-            'date_labels' => $this->stringList($settings['date_labels'] ?? null, self::DEFAULT_DATE_LABELS),
-            'ticket_labels' => $this->stringList($settings['ticket_labels'] ?? null, self::DEFAULT_TICKET_LABELS),
-            'item_labels' => $this->stringList($settings['item_labels'] ?? null, self::DEFAULT_ITEM_LABELS),
-            'size_labels' => $this->stringList($settings['size_labels'] ?? null, self::DEFAULT_SIZE_LABELS),
-            'note_labels' => $this->stringList($settings['note_labels'] ?? null, self::DEFAULT_NOTE_LABELS),
-            'note_append_labels' => $this->stringList($settings['note_append_labels'] ?? null, self::DEFAULT_NOTE_APPEND_LABELS),
-            'known_items' => $this->stringList($settings['known_items'] ?? null, self::DEFAULT_KNOWN_ITEMS),
-            'mapped_fields' => $this->fieldMappings($settings['mapped_fields'] ?? null),
-        ];
+        $this->mappedFields = $this->fieldMappings($settings['mapped_fields'] ?? null);
     }
 
     /**
@@ -70,40 +23,33 @@ final class MailParser
     public function parseOrderConfirmation(array $message): array
     {
         $text = $this->extractText($message);
-        $htmlAnswers = $this->extractGoogleFormAnswersFromHtml($message);
         $receivedAt = $this->receivedAt($message);
 
-        $dateLabels = $this->settings['date_labels'];
-        $dateAnswer = $this->answerFromMap($htmlAnswers, $dateLabels) ?? $this->answerFor($text, $dateLabels);
-        if ($dateAnswer === null && preg_match('/\d{4}-\d{1,2}-\d{1,2}|\d{1,2}月\d{1,2}日(?:[（(][月火水木金土日][）)])?/u', $text, $m)) {
-            $dateAnswer = $m[0];
-        }
-        if ($dateAnswer === null) {
+        if (preg_match('/\[(\d{4}-\d{1,2}-\d{1,2})\]/u', $text, $date) !== 1) {
             throw new RuntimeException('注文日付を抽出できません');
         }
+        $dateAnswer = $date[1];
 
-        $ticketLabels = [...$this->settings['ticket_labels'], 'お弁当券ナンバー'];
-        $ticketAnswer = $this->answerFromMap($htmlAnswers, $ticketLabels) ?? $this->answerFor($text, $ticketLabels);
-        $ticketNo = trim((string) $ticketAnswer);
+        $ticketNo = trim((string) $this->answerFor($text, ['お弁当券ナンバー']));
         if ($ticketNo === '') {
             throw new RuntimeException('お弁当ナンバーを抽出できません');
         }
 
-        $itemName = $this->extractItemName($text, $htmlAnswers);
-        if ($itemName === null) {
+        $itemName = $this->normalizeMenuText((string) $this->answerFor($text, ['メニュー']));
+        if ($itemName === '') {
             throw new RuntimeException('品名を抽出できません');
         }
 
-        $sizeAnswer = $this->extractSizeAnswer($text, $htmlAnswers);
-        if (!preg_match('/^\s*([SML])\b|([SML])\s*(?:ライス)?\s*\d{3}\s*[gｇ]/iu', $sizeAnswer, $sizeMatch)) {
+        $sizeAnswer = (string) $this->answerFor($text, ['サイズ']);
+        if (preg_match('/^\s*([SML])\b/iu', $sizeAnswer, $sizeMatch) !== 1) {
             throw new RuntimeException('サイズを抽出できません');
         }
-        $size = strtoupper(($sizeMatch[1] ?? '') !== '' ? $sizeMatch[1] : $sizeMatch[2]);
+        $size = strtoupper($sizeMatch[1]);
 
-        $noteLabels = [...$this->settings['note_labels'], 'その他の要望'];
-        $note = $this->answerFromMap($htmlAnswers, $noteLabels) ?? ($htmlAnswers !== [] ? '' : ($this->answerFor($text, $noteLabels) ?? ''));
-        foreach ($this->extractNoteAppendFields($text, $htmlAnswers) as $label => $answer) {
-            $note = $this->appendNote($note, $label . ': ' . $answer);
+        $note = $this->answerFor($text, ['その他の要望']) ?? '';
+        $customization = $this->answerFor($text, ['カスタマイズ']);
+        if ($customization !== null && trim($customization) !== '') {
+            $note = $this->appendNote($note, 'カスタマイズ: ' . $customization);
         }
 
         return [
@@ -113,7 +59,7 @@ final class MailParser
             'size' => $size,
             'note' => $note,
             'warn_previous_year' => $this->isPreviousYearWarning($dateAnswer, $receivedAt),
-            'mapped_fields' => $this->extractMappedFields($text, $htmlAnswers),
+            'mapped_fields' => $this->extractMappedFields($text),
         ];
     }
 
@@ -213,167 +159,6 @@ final class MailParser
         }
 
         throw new RuntimeException('メール本文のデコード失敗: text/plainまたはtext/htmlがありません');
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function extractGoogleFormAnswersFromHtml(array $message): array
-    {
-        $payload = $message['payload'] ?? null;
-        if (!is_array($payload)) {
-            return [];
-        }
-
-        $plain = [];
-        $htmlParts = [];
-        $this->collectParts($payload, $plain, $htmlParts);
-        if ($htmlParts === []) {
-            return [];
-        }
-
-        $answers = [];
-        foreach ($htmlParts as $html) {
-            foreach ($this->parseGoogleFormHtmlAnswers($html) as $question => $answer) {
-                $answers[$question] = $answer;
-            }
-        }
-
-        return $answers;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function parseGoogleFormHtmlAnswers(string $html): array
-    {
-        $document = new DOMDocument();
-        $previous = libxml_use_internal_errors(true);
-        $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        $answers = [];
-        foreach ($document->getElementsByTagName('h2') as $heading) {
-            $question = $this->normalizeText($heading->textContent);
-            if ($question === '') {
-                continue;
-            }
-
-            $answer = $this->findAnswerAfterHeading($heading);
-            if ($answer !== null) {
-                $answers[$question] = $answer;
-            }
-        }
-
-        return $answers;
-    }
-
-    private function findAnswerAfterHeading(DOMNode $heading): ?string
-    {
-        $cursor = $heading;
-        while ($cursor->parentNode !== null) {
-            $node = $cursor->nextSibling;
-            while ($node !== null) {
-                if ($node instanceof DOMElement) {
-                    if (strtolower($node->tagName) === 'h2') {
-                        return null;
-                    }
-
-                    $answer = $this->firstAnswerTextInNode($node);
-                    if ($answer !== null) {
-                        return $answer;
-                    }
-                }
-                $node = $node->nextSibling;
-            }
-
-            $cursor = $cursor->parentNode;
-        }
-
-        return null;
-    }
-
-    private function firstAnswerTextInNode(DOMElement $node): ?string
-    {
-        if (strtolower($node->tagName) === 'img') {
-            return null;
-        }
-
-
-        if (strtolower($node->tagName) === 'div') {
-            $style = (string) $node->getAttribute('style');
-            if (str_contains($style, 'border-bottom')) {
-                $text = $this->normalizeText($node->textContent);
-                return $this->isSkippableAnswerLine($text) ? null : $text;
-            }
-            if (str_contains($style, 'border: 1px solid #dadce0') && $node->getElementsByTagName('h2')->length === 0) {
-                $text = $this->normalizeText($node->textContent);
-                return $this->isSkippableAnswerLine($text) ? null : $text;
-            }
-            if ($node->getElementsByTagName('h2')->length === 0) {
-                $checkedBoxes = $this->selectedCheckboxTextInNode($node);
-                if ($checkedBoxes !== null) {
-                    return $checkedBoxes;
-                }
-            }
-        }
-
-        if ($this->isCheckedControl($node)) {
-            $checked = $this->controlLabel($node);
-            return $checked === null ? null : $this->normalizeMenuText($checked);
-        }
-
-        foreach ($node->childNodes as $child) {
-            if ($child instanceof DOMElement) {
-                $answer = $this->firstAnswerTextInNode($child);
-                if ($answer !== null) {
-                    return $answer;
-                }
-            }
-        }
-
-        return null;
-    }
-    private function selectedCheckboxTextInNode(DOMElement $node): ?string
-    {
-        $selected = [];
-        foreach ($node->getElementsByTagName('div') as $div) {
-            if (strtolower((string) $div->getAttribute('role')) === 'checkbox'
-                && strtolower((string) $div->getAttribute('aria-checked')) === 'true') {
-                $selected[] = $this->controlLabel($div);
-            }
-        }
-
-        $selected = array_values(array_filter(array_map(
-            fn (?string $value): ?string => $value === null ? null : $this->normalizeMenuText($this->normalizeText($value)),
-            $selected
-        ), fn (?string $value): bool => $value !== null && $value !== ''));
-
-        return $selected === [] ? null : implode('、', array_unique($selected));
-    }
-
-    private function isCheckedControl(DOMElement $node): bool
-    {
-        $role = strtolower((string) $node->getAttribute('role'));
-
-        return in_array($role, ['radio', 'checkbox'], true)
-            && strtolower((string) $node->getAttribute('aria-checked')) === 'true';
-    }
-
-    private function controlLabel(DOMElement $node): ?string
-    {
-        $label = $this->normalizeText((string) $node->getAttribute('aria-label'));
-        if ($label !== '') {
-            return $label;
-        }
-
-        $row = $node;
-        while ($row->parentNode instanceof DOMElement && strtolower($row->tagName) !== 'tr') {
-            $row = $row->parentNode;
-        }
-
-        return $this->normalizeText($row->textContent);
     }
 
     public function parseJapaneseDate(string $value, DateTimeImmutable $receivedAt): string
@@ -501,41 +286,12 @@ final class MailParser
         return trim($text);
     }
 
-    /**
-     * @param array<int, string> $labels
-     */
-    private function answerFromMap(array $answers, array $labels): ?string
-    {
-        foreach ($answers as $question => $answer) {
-            foreach ($labels as $label) {
-                if (str_contains($question, $label) && !$this->isSkippableAnswerLine($answer)) {
-                    return $answer;
-                }
-            }
-        }
-
-        return null;
-    }
-
     private function answerFor(string $text, array $labels): ?string
     {
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $text)), static fn (string $line): bool => $line !== ''));
-        foreach ($lines as $i => $line) {
+        foreach (array_map('trim', explode("\n", $text)) as $line) {
             foreach ($labels as $label) {
-                if (!str_contains($line, $label)) {
-                    continue;
-                }
-
-                if (preg_match('/[:：]\s*(.+)$/u', $line, $m)) {
+                if (str_contains($line, $label) && preg_match('/[:：]\s*(.+)$/u', $line, $m)) {
                     return trim($m[1]);
-                }
-
-                for ($j = $i + 1; $j < min(count($lines), $i + 10); $j++) {
-                    if ($this->isSkippableAnswerLine($lines[$j])) {
-                        continue;
-                    }
-
-                    return trim($lines[$j]);
                 }
             }
         }
@@ -543,66 +299,14 @@ final class MailParser
         return null;
     }
 
-    private function extractSizeAnswer(string $text, array $htmlAnswers): string
-    {
-        $sizeLabels = $this->settings['size_labels'];
-        $answers = [];
-
-        foreach ($htmlAnswers as $question => $answer) {
-            foreach ($sizeLabels as $label) {
-                if (str_contains($question, $label) && !$this->isSkippableAnswerLine($answer)) {
-                    $answers[] = $answer;
-                }
-            }
-        }
-
-        $textAnswer = $this->answerFor($text, $sizeLabels);
-        if ($textAnswer !== null) {
-            $answers[] = $textAnswer;
-        }
-        $answers[] = $text;
-
-        foreach ($answers as $answer) {
-            if (preg_match('/^\s*[SML]\b|[SML]\s*(?:ライス)?\s*\d{3}\s*[gｇ]/iu', $answer)) {
-                return $answer;
-            }
-        }
-
-        return '';
-    }
-
     /**
-     * @param array<string, string> $htmlAnswers
      * @return array<string, string>
      */
-    private function extractNoteAppendFields(string $text, array $htmlAnswers): array
+    private function extractMappedFields(string $text): array
     {
         $fields = [];
-        foreach ([...$this->settings['note_append_labels'], 'カスタマイズ'] as $label) {
-            $answer = $this->answerFromMap($htmlAnswers, [$label]) ?? $this->answerFor($text, [$label]);
-            if ($answer === null) {
-                continue;
-            }
-
-            $value = $this->normalizeText($answer);
-            if ($value !== '') {
-                $fields[$label] = $value;
-            }
-        }
-
-        return $fields;
-    }
-
-    /**
-     * @param array<string, string> $htmlAnswers
-     * @return array<string, string>
-     */
-    private function extractMappedFields(string $text, array $htmlAnswers): array
-    {
-        $fields = [];
-        foreach ($this->settings['mapped_fields'] as $mapping) {
-            $answer = $this->answerFromMap($htmlAnswers, $mapping['mail_labels'])
-                ?? $this->answerFor($text, $mapping['mail_labels']);
+        foreach ($this->mappedFields as $mapping) {
+            $answer = $this->answerFor($text, $mapping['mail_labels']);
             if ($answer === null) {
                 continue;
             }
@@ -630,39 +334,6 @@ final class MailParser
         return $note . '、' . $addition;
     }
 
-    private function extractItemName(string $text, array $htmlAnswers): ?string
-    {
-        $labels = $this->settings['item_labels'];
-        $answer = $this->answerFromMap($htmlAnswers, $labels) ?? $this->answerFor($text, $labels);
-        if ($answer !== null && !preg_match('/^(S|M|L)\s*\d{3}\s*[gｇ]?$/iu', $answer)) {
-            $knownAnswer = $this->knownItemName($answer);
-            return $knownAnswer ?? $this->normalizeMenuText($answer);
-        }
-
-        foreach ($htmlAnswers as $answerValue) {
-            $knownAnswer = $this->knownItemName($answerValue);
-            if ($knownAnswer !== null) {
-                return $knownAnswer;
-            }
-        }
-
-        $knownAnswer = $this->knownItemName($text);
-        return $knownAnswer;
-    }
-
-    private function knownItemName(string $value): ?string
-    {
-        $normalizedValue = $this->normalizeMenuText($value);
-
-        foreach ($this->settings['known_items'] as $item) {
-            if (str_contains($normalizedValue, $item)) {
-                return $item;
-            }
-        }
-
-        return null;
-    }
-
     private function normalizeMenuText(string $value): string
     {
         $value = strtr($value, ['Ａ' => 'A', 'Ｂ' => 'B']);
@@ -679,32 +350,6 @@ final class MailParser
         }
 
         return (int) $receivedAt->format('n') === 1 && (int) $m[1] === 12;
-    }
-
-    private function isSkippableAnswerLine(string $line): bool
-    {
-        $line = trim($line);
-        if ($line === '' || $line === '説明のない画像' || preg_match('/^\\*+$/u', $line)) {
-            return true;
-        }
-        if ($this->knownItemName($line) !== null || preg_match('/^\s*[SML]\b|[SML]\s*(?:ライス)?\s*\d{3}\s*[gｇ]/iu', $line)) {
-            return false;
-        }
-
-        if ($this->looksLikeQuestion($line) || str_contains($line, '必須')) {
-            return true;
-        }
-
-        return preg_match('/^(?:い|い。|さい|さい。|ださい|ださい。|ください|ください。)\\s*\\*?$/u', $line) === 1;
-    }
-
-    private function looksLikeQuestion(string $line): bool
-    {
-        return str_contains($line, 'してください')
-            || str_contains($line, 'お弁当')
-            || str_contains($line, 'ライス')
-            || str_contains($line, '備考')
-            || str_contains($line, '品名');
     }
 
     /**

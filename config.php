@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/src/MailParser.php';
-
 function loadEnvFile(string $path): void
 {
     if (!is_file($path)) {
@@ -268,13 +266,6 @@ return [
     'ramen_kimura_mail_receipt_subject' => $ramenKimuraMailReceiptSubject,
     'gmail_processed_label_name' => $gmailProcessedLabelName,
     'mail_parser' => [
-        'date_labels' => envList('MAIL_MATSUYA_FIELD_DATE_LABELS', MailParser::DEFAULT_DATE_LABELS),
-        'ticket_labels' => envList('MAIL_MATSUYA_FIELD_TICKET_LABELS', MailParser::DEFAULT_TICKET_LABELS),
-        'item_labels' => envList('MAIL_MATSUYA_FIELD_ITEM_LABELS', MailParser::DEFAULT_ITEM_LABELS),
-        'size_labels' => envList('MAIL_MATSUYA_FIELD_SIZE_LABELS', MailParser::DEFAULT_SIZE_LABELS),
-        'note_labels' => envList('MAIL_MATSUYA_FIELD_NOTE_LABELS', MailParser::DEFAULT_NOTE_LABELS),
-        'note_append_labels' => envList('MAIL_MATSUYA_FIELD_NOTE_APPEND_LABELS', MailParser::DEFAULT_NOTE_APPEND_LABELS),
-        'known_items' => envList('MAIL_MATSUYA_KNOWN_ITEMS', MailParser::DEFAULT_KNOWN_ITEMS),
         'mapped_fields' => array_map(
             static fn (array $mapping): array => [
                 'key' => $mapping['key'],
