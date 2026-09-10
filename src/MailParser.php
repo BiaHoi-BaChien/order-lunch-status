@@ -25,7 +25,7 @@ final class MailParser
         $text = $this->extractText($message);
         $receivedAt = $this->receivedAt($message);
 
-        if (preg_match('/\[(\d{4}-\d{1,2}-\d{1,2})\]/u', $text, $date) !== 1) {
+        if (preg_match('/\[(\d{4}-\d{1,2}-\d{1,2})\]/u', mb_convert_kana($text, 'a', 'UTF-8'), $date) !== 1) {
             throw new RuntimeException('注文日付を抽出できません');
         }
         $dateAnswer = $date[1];
