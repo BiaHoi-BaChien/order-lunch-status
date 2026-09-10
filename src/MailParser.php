@@ -148,14 +148,14 @@ final class MailParser
         $html = [];
         $this->collectParts($payload, $plain, $html);
 
-        if ($plain !== []) {
-            return $this->normalizeText(implode("\n", $plain));
-        }
         if ($html !== []) {
             $rawHtml = implode("\n", $html);
             $rawHtml = preg_replace('/<img\b[^>]*>/iu', '', $rawHtml) ?? $rawHtml;
             $htmlText = preg_replace('/<(br|\/p|\/div|\/tr|\/li|\/h[1-6])\b[^>]*>/iu', "\n", $rawHtml) ?? $rawHtml;
-            return $this->normalizeText(html_entity_decode(strip_tags($htmlText), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            $plain[] = html_entity_decode(strip_tags($htmlText), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        if ($plain !== []) {
+            return $this->normalizeText(implode("\n", $plain));
         }
 
         throw new RuntimeException('メール本文のデコード失敗: text/plainまたはtext/htmlがありません');
