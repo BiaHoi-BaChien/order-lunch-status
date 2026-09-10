@@ -54,7 +54,7 @@ $multipartMatsuyaOrder = $parser->parseOrderConfirmation([
         'parts' => [
             ['mimeType' => 'text/plain', 'body' => ['data' => base64Url('※このメールはシステムからの自動送信です。')]],
             ['mimeType' => 'text/html', 'body' => ['data' => base64Url(<<<HTML
-<div>[2026-09-11]</div>
+<div>［2026-09-11］</div>
 <div>・お弁当券ナンバー: A10345</div>
 <div>・メニュー: オリジナルカレーA券</div>
 <div>・サイズ: S</div>
