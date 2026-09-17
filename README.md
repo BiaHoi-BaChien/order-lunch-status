@@ -74,7 +74,7 @@ MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_JSON=[]
 MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
-`MAIL_MATSUYA_RECEIPT_FROM` と `MAIL_RAMEN_KIMURA_RECEIPT_FROM` の送信元アドレスは `|` 区切りで複数指定できます。複数指定した場合はOR条件で検索・照合します（全角の `｜` も使用できます）。松屋とRAMEN KIMURAの各FROM設定は、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
+松屋とRAMEN KIMURAの各FROM設定の送信元アドレスは `|` 区切りで複数指定できます。複数指定した場合はOR条件で検索・照合します（全角の `｜` も使用できます）。松屋とRAMEN KIMURAの各FROM設定は、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
 
 `GMAIL_PROCESSED_LABEL_NAME` のラベルがGmailに存在しない場合は、初回のラベル付与時に自動作成します。既存の `gmail.readonly` トークンではラベル付与できないため、古い `credentials/gmail_token.json` を削除し、`php gmail_auth.php` を再実行して `gmail.modify` の権限でトークンを作り直してください。
 
@@ -96,6 +96,8 @@ MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH=
 ### メール解析設定のWeb編集
 
 `mail_settings.php` をブラウザで開くと、メールの送信元と件名を松屋とRAMEN KIMURAの店舗別に編集できます。その他の `.env` 項目は保持します。
+
+送信元はメールアドレスごとに入力欄を分けて表示します。「メールアドレスを追加」で入力欄を増やし、各欄の「削除」で取り除けます。保存時は空欄を除き、自動的に `|` 区切りで `.env` に保存します。画面で区切り文字を入力する必要はありません。
 
 `mail_settings.php` を使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD_HASH` を設定してください。未設定の場合はlocalhostを含むすべてのアクセスを拒否します。
 

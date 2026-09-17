@@ -104,7 +104,7 @@ final class EnvFileEditor
     public static function envToList(string $value): array
     {
         return array_values(array_filter(
-            array_map('trim', explode('|', $value)),
+            array_map('trim', preg_split('/[|｜]/u', $value) ?: []),
             static fn (string $item): bool => $item !== ''
         ));
     }
