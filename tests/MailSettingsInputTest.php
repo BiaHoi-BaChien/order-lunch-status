@@ -21,9 +21,7 @@ $initial = [
     'MAIL_MATSUYA_RECEIPT_FROM' => 'first@example.com｜second@example.com',
     'MAIL_MATSUYA_RECEIPT_SUBJECT' => '受付確認',
     'MAIL_RAMEN_KIMURA_ORDER_FROM' => 'kimura-orders@example.com',
-    'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => '注文確認',
-    'MAIL_RAMEN_KIMURA_RECEIPT_FROM' => '',
-    'MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT' => '受付確認',
+    'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => '【お弁当注文確認】',
 ];
 
 try {
@@ -31,8 +29,11 @@ try {
     $html = renderPage($directory);
     assertContains('name="MAIL_MATSUYA_RECEIPT_FROM[]" value="first@example.com"', $html);
     assertContains('name="MAIL_MATSUYA_RECEIPT_FROM[]" value="second@example.com"', $html);
-    assertContains('name="MAIL_RAMEN_KIMURA_RECEIPT_FROM[]" value=""', $html);
-    assertSame(4, substr_count($html, 'class="add-email"'));
+    assertContains('name="MAIL_RAMEN_KIMURA_ORDER_FROM[]" value="kimura-orders@example.com"', $html);
+    assertContains('name="MAIL_RAMEN_KIMURA_ORDER_SUBJECT" value="ご注文を承りました"', $html);
+    assertSame(false, str_contains($html, 'MAIL_RAMEN_KIMURA_RECEIPT_FROM'));
+    assertSame(false, str_contains($html, 'MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT'));
+    assertSame(3, substr_count($html, 'class="add-email"'));
     assertSame(false, str_contains($html, '区切りで複数指定可'));
 
     $post = ['action' => 'save', 'csrf' => 'test-csrf'];
@@ -59,7 +60,7 @@ try {
     foreach (['not-an-email', 'one@example.com|two@example.com', 'one@example.com｜two@example.com', "first@example.com\nINJECTED=value", ['nested@example.com']] as $invalid) {
         $invalidPost = $post;
         $invalidPost['MAIL_MATSUYA_RECEIPT_FROM'] = ['valid@example.com', $invalid];
-        $invalidPost['MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT'] = '保存前の入力を保持';
+        $invalidPost['MAIL_RAMEN_KIMURA_ORDER_SUBJECT'] = '保存前の入力を保持';
         $html = renderPage($directory, $invalidPost);
         assertContains('class="alert error"', $html);
         assertContains('松屋の受付確認メールの送信元（2件目）', $html);
@@ -88,11 +89,11 @@ try {
     assertSame($savedContent, file_get_contents($envPath));
 
     $post['MAIL_MATSUYA_RECEIPT_FROM'] = [''];
-    $post['MAIL_RAMEN_KIMURA_RECEIPT_FROM'] = ['only@example.com'];
+    $post['MAIL_RAMEN_KIMURA_ORDER_FROM'] = ['only@example.com'];
     assertContains('.env を更新しました。', renderPage($directory, $post));
     $saved = EnvFileEditor::readValues($envPath);
     assertSame('', $saved['MAIL_MATSUYA_RECEIPT_FROM']);
-    assertSame('only@example.com', $saved['MAIL_RAMEN_KIMURA_RECEIPT_FROM']);
+    assertSame('only@example.com', $saved['MAIL_RAMEN_KIMURA_ORDER_FROM']);
     assertContains('name="MAIL_MATSUYA_RECEIPT_FROM[]" value=""', renderPage($directory));
 } finally {
     foreach (array_merge($files, ['.env', 'sess_testsettings']) as $file) {

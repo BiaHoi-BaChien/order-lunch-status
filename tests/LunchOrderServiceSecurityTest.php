@@ -12,15 +12,10 @@ $kimuraAuthentication = strpos($source, "assertAuthentic(\$message, (string) \$t
 $kimuraParsing = strpos($source, 'parseKimuraOrderConfirmation($message)');
 $receiptAuthentication = strpos($source, 'assertAuthentic($message, $expectedSender)');
 $receiptParsing = strpos($source, 'parseReceipt($message)');
-$kimuraReceiptParsing = strpos($source, 'parseKimuraReceipt($message)');
-$kimuraReceiptTargetGuard = strpos($source, 'if ($isKimura && !$this->isConfirmedKimuraOrder($page))');
-$receiptStatusUpdate = strpos($source, "'状況' => ['select' => ['name' => '受付済']]");
 
 assertBefore($orderAuthentication, $orderParsing, '注文確認メール');
 assertBefore($kimuraAuthentication, $kimuraParsing, 'RAMEN KIMURA注文確認メール');
 assertBefore($receiptAuthentication, $receiptParsing, '受付確認メール');
-assertBefore($receiptAuthentication, $kimuraReceiptParsing, 'RAMEN KIMURA受付確認メール');
-assertBefore($kimuraReceiptTargetGuard, $receiptStatusUpdate, 'RAMEN KIMURA受付対象確認');
 
 $service = (new ReflectionClass(LunchOrderService::class))->newInstanceWithoutConstructor();
 (new ReflectionProperty(LunchOrderService::class, 'config'))->setValue($service, [
