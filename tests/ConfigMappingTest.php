@@ -24,8 +24,8 @@ assertSame('order-lunch-status-processed', $config['gmail_processed_label_name']
 assertSame('receipts@example.com', $config['matsuya_mail_receipt_from'] ?? null);
 assertSame('kimura@example.com', $config['ramen_kimura_mail_order_from'] ?? null);
 assertSame('KIMURA注文確認', $config['ramen_kimura_mail_order_subject'] ?? null);
-assertSame('receipt-a@example.com|receipt-b@example.com', $config['ramen_kimura_mail_receipt_from'] ?? null);
-assertSame('KIMURA受付確認', $config['ramen_kimura_mail_receipt_subject'] ?? null);
+assertSame(false, array_key_exists('ramen_kimura_mail_receipt_from', $config));
+assertSame(false, array_key_exists('ramen_kimura_mail_receipt_subject', $config));
 assertSame(75, $config['gmail_max_messages_per_run'] ?? null);
 
 echo "Config mapping test passed\n";

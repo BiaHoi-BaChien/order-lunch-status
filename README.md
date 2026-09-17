@@ -45,10 +45,9 @@ NOTION_TICKET_DATA_SOURCE_ID=
 - 過去7日分のGoogleフォーム回答メールを解析し、注文日付・チケット番号・品名・サイズ・備考を抽出します。
 - 正常に反映できた注文確認メール・注文受付メール、またはNotion側の状態から既に処理済みと判定できたメールにはGmailの処理済みラベルを付け、次回以降の検索ではそのラベル付きメールを除外します。
 - チケット番号はフォーム回答欄に記載された値をそのまま使用します。`B13495` と数字4桁の `1234` の両方に対応します。
-- 注文確認メールは、対象日の状況が `注文済` または `受付済` ならスキップします。
-- 注文受付メールは、日付で対象レコードを探して `受付済` と受付確認メールURLを更新します。
-- RAMEN KIMURAの注文確認メールは、`.env` に設定した送信元と件名で検索し、店舗・品名・合計金額・注文確認メールURLを更新して、メール本文内の埋め込みまたは外部QR画像をページ本文へ追加します。QR画像がない場合も注文更新は継続します。
-- RAMEN KIMURAの注文受付メールは、本文の `お届け日` で対象レコードを探して `受付済` と受付確認メールURLを更新します。
+- 松屋は従来どおり2通で処理します。注文確認メールで `注文済` に更新し、既に `注文済` または `受付済` ならスキップします。注文受付メールで日付に対応するレコードを `受付済` に更新し、受付確認メールURLを記録します。
+- RAMEN KIMURAは「ご注文を承りました」メール1通で、日付・店舗・品名・合計金額を登録し、直接 `受付済` に更新します。同じメールのURLを `注文確認メール` と `受付確認メール` に記録します。QR画像があればページ本文へ追加し、なくても注文更新は継続します。別の注文が同日に登録済みの場合は上書きせずエラーにします。
+- RAMEN KIMURAの処理件数は注文受付メールに集計します。松屋の注文確認メールを処理した後、残りの処理枠を松屋の受付メールとKIMURAの単一メールに割り当てます。
 - 1件のメールでエラーが出ても、他のメール処理は継続します。
 - 1回の起動で処理対象にするGmailメッセージは `GMAIL_MAX_MESSAGES_PER_RUN`（既定100件）までに制限します。
 - 同じ設置先でバッチが重複起動した場合、後から起動した処理は安全にスキップします。
@@ -57,7 +56,7 @@ NOTION_TICKET_DATA_SOURCE_ID=
 
 Gmail検索条件は `.env` で変更できます。松屋の注文確認メールは、新フォーマットの `[YYYY-MM-DD]`、`お弁当券ナンバー`、`メニュー`、`サイズ`、`カスタマイズ`、`その他の要望` を解析します。
 
-RAMEN KIMURAの注文確認メールは、従来の `注文日`・`メニュー`・`合計金額` 形式と、事前チャージ払いの `YYYY-MM-DD 氏名`・`商品名 × 数量 金額 VND`・`お支払い` 形式に対応します。新形式では品名に日付・数量・価格を含めず、支払額を備考へ記録します。数量が2以上の場合は備考に数量も記録します。1通に複数の日付・商品がある場合や、テキスト本文とHTML本文の注文内容が異なる場合は、誤登録を避けるためエラーにします。
+RAMEN KIMURAの「ご注文を承りました」メールは、事前チャージ払いの `YYYY-MM-DD 氏名`・`商品名 × 数量 金額 VND`・`お支払い` 形式に対応します。品名に日付・数量・価格を含めず、支払額を備考へ記録します。数量が2以上の場合は備考に数量も記録します。1通に複数の日付・商品がある場合や、テキスト本文とHTML本文の注文内容が異なる場合は、誤登録を避けるためエラーにします。本文の `注文日`・`メニュー`・`合計金額` 形式の解析も引き続き利用できます。
 
 ```env
 MAIL_MATSUYA_ORDER_FROM=forms-receipts-noreply@google.com
@@ -65,16 +64,18 @@ MAIL_MATSUYA_ORDER_SUBJECT=フォームにご記入いただきありがとう�
 MAIL_MATSUYA_RECEIPT_FROM=送信元アドレス1|送信元アドレス2
 MAIL_MATSUYA_RECEIPT_SUBJECT=【松屋】お弁当注文受付確認
 MAIL_RAMEN_KIMURA_ORDER_FROM=tobe.kimura@gmail.com
-MAIL_RAMEN_KIMURA_ORDER_SUBJECT=【お弁当注文確認】
-MAIL_RAMEN_KIMURA_RECEIPT_FROM=tobe.kimura@gmail.com
-MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT=【弁当注文】ご注文が確定しました（ご入金を確認しました）
+MAIL_RAMEN_KIMURA_ORDER_SUBJECT=ご注文を承りました
 GMAIL_PROCESSED_LABEL_NAME=order-lunch-status-processed
 MAIL_SETTINGS_PASSWORD_HASH=
 MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_JSON=[]
 MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH=
 ```
 
-`MAIL_MATSUYA_RECEIPT_FROM` と `MAIL_RAMEN_KIMURA_RECEIPT_FROM` の送信元アドレスは `|` 区切りで複数指定できます。複数指定した場合はOR条件で検索・照合します（全角の `｜` も使用できます）。松屋とRAMEN KIMURAの各FROM設定は、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
+各FROM設定の送信元アドレスは `|` 区切りで複数指定できます。複数指定した場合はOR条件で検索・照合します（全角の `｜` も使用できます）。松屋とRAMEN KIMURAの各FROM設定は、Gmail検索だけでなく `From` ヘッダーとGmailのDMARC/DKIM認証結果、または送信元アドレスと完全一致するSPF認証結果の検証にも使用します。`GMAIL_PROCESSED_LABEL_NAME` は処理済みメールへ付けるGmailラベル名です。空にするとラベル付与と検索除外を無効化します。
+
+RAMEN KIMURAの送信元は既存の `MAIL_RAMEN_KIMURA_ORDER_FROM` を引き継ぎます。`MAIL_RAMEN_KIMURA_ORDER_SUBJECT` が未設定・空、または旧既定値 `【お弁当注文確認】` の場合は、新件名 `ご注文を承りました` を使用します。それ以外の独自設定は保持するため、必要に応じてメール設定画面で新件名へ変更してください。件名の前後の空白は除去します。旧 `MAIL_RAMEN_KIMURA_RECEIPT_FROM` / `MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT` は使用しません。
+
+既に処理済みラベルが付いたメールは自動では再検索しません。旧処理で `注文済` になった「ご注文を承りました」メールを再処理する場合は、そのメールだけ処理済みラベルを外し、`LOOKBACK_DAYS` の検索期間内でバッチを実行してください。同じメールURLなら `受付済` まで更新し、QR画像を重複追加しません。
 
 `GMAIL_PROCESSED_LABEL_NAME` のラベルがGmailに存在しない場合は、初回のラベル付与時に自動作成します。既存の `gmail.readonly` トークンではラベル付与できないため、古い `credentials/gmail_token.json` を削除し、`php gmail_auth.php` を再実行して `gmail.modify` の権限でトークンを作り直してください。
 

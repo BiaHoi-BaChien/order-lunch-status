@@ -226,9 +226,11 @@ $matsuyaMailOrderSubject = envValue('MAIL_MATSUYA_ORDER_SUBJECT', 'フォーム�
 $matsuyaMailReceiptFrom = envString('MAIL_MATSUYA_RECEIPT_FROM', '');
 $matsuyaMailReceiptSubject = envValue('MAIL_MATSUYA_RECEIPT_SUBJECT', '【松屋】お弁当注文受付確認');
 $ramenKimuraMailOrderFrom = envString('MAIL_RAMEN_KIMURA_ORDER_FROM', 'tobe.kimura@gmail.com');
-$ramenKimuraMailOrderSubject = envValue('MAIL_RAMEN_KIMURA_ORDER_SUBJECT', '【お弁当注文確認】');
-$ramenKimuraMailReceiptFrom = envString('MAIL_RAMEN_KIMURA_RECEIPT_FROM', 'tobe.kimura@gmail.com');
-$ramenKimuraMailReceiptSubject = envValue('MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT', '【弁当注文】ご注文が確定しました（ご入金を確認しました）');
+$ramenKimuraMailOrderSubject = trim(envValue('MAIL_RAMEN_KIMURA_ORDER_SUBJECT', 'ご注文を承りました'));
+// 旧既定件名が残る設置先も、1通で受付が完了する新メールへ移行する。
+if (in_array($ramenKimuraMailOrderSubject, ['', '【お弁当注文確認】'], true)) {
+    $ramenKimuraMailOrderSubject = 'ご注文を承りました';
+}
 $gmailProcessedLabelName = envString('GMAIL_PROCESSED_LABEL_NAME', 'order-lunch-status-processed');
 $mailNotionPropertyMappings = envMailNotionPropertyMappings('MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_JSON', 'MAIL_MATSUYA_NOTION_PROPERTY_MAPPINGS_PATH');
 if ($slackNotificationEnabled && $slackWebhookUrl === '') {
@@ -262,8 +264,6 @@ return [
     'matsuya_mail_receipt_subject' => $matsuyaMailReceiptSubject,
     'ramen_kimura_mail_order_from' => $ramenKimuraMailOrderFrom,
     'ramen_kimura_mail_order_subject' => $ramenKimuraMailOrderSubject,
-    'ramen_kimura_mail_receipt_from' => $ramenKimuraMailReceiptFrom,
-    'ramen_kimura_mail_receipt_subject' => $ramenKimuraMailReceiptSubject,
     'gmail_processed_label_name' => $gmailProcessedLabelName,
     'mail_parser' => [
         'mapped_fields' => array_map(
