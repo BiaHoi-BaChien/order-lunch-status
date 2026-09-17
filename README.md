@@ -98,6 +98,8 @@ RAMEN KIMURAの送信元は既存の `MAIL_RAMEN_KIMURA_ORDER_FROM` を引き継
 
 `mail_settings.php` をブラウザで開くと、メールの送信元と件名を松屋とRAMEN KIMURAの店舗別に編集できます。その他の `.env` 項目は保持します。
 
+送信元はメールアドレスごとに入力欄を分けて表示します。「メールアドレスを追加」で入力欄を増やし、各欄の「削除」で取り除けます。保存時は空欄を除き、自動的に `|` 区切りで `.env` に保存します。画面で区切り文字を入力する必要はありません。
+
 `mail_settings.php` を使用する場合は、必ず `.env` に `MAIL_SETTINGS_PASSWORD_HASH` を設定してください。未設定の場合はlocalhostを含むすべてのアクセスを拒否します。
 
 このプロジェクトをWebサーバーのDocumentRoot配下に設置する場合は、検索エンジンやAIクローラーに発見されにくくするため、同梱の `.htaccess` と `robots.txt` も配置してください。`.htaccess` は `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex` を返し、`robots.txt` は全クローラーに全パスのクロール拒否を通知します。これは公開URLを知っている利用者のアクセス制御ではないため、`mail_settings.php` には必ずパスワードを設定してください。

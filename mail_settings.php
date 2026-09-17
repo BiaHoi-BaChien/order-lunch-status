@@ -14,7 +14,7 @@ $settingGroups = [
     '松屋' => [
         'MAIL_MATSUYA_ORDER_FROM' => '注文確認メールの送信元',
         'MAIL_MATSUYA_ORDER_SUBJECT' => '注文確認メールの件名',
-        'MAIL_MATSUYA_RECEIPT_FROM' => '受付確認メールの送信元（|区切りで複数指定可）',
+        'MAIL_MATSUYA_RECEIPT_FROM' => '受付確認メールの送信元',
         'MAIL_MATSUYA_RECEIPT_SUBJECT' => '受付確認メールの件名',
     ],
     'RAMEN KIMURA' => [
@@ -92,16 +92,44 @@ if ($passwordConfigured && !($_SESSION['mail_settings_authenticated'] ?? false))
     exit;
 }
 
-try {
-    $values = array_replace($defaults, $envFileValues);
+$values = array_replace($defaults, $envFileValues);
 
+try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
         verifyCsrf((string) ($_POST['csrf'] ?? ''), (string) $_SESSION['mail_settings_csrf']);
 
-        $updates = [];
+        // Keep all submitted fields visible if validation or saving fails.
         foreach ($settingGroups as $settings) {
             foreach ($settings as $key => $_label) {
-                $updates[$key] = trim((string) ($_POST[$key] ?? ''));
+                $input = $_POST[$key] ?? (str_ends_with($key, '_FROM') ? [] : '');
+                if (is_string($input) || (is_array($input) && count(array_filter($input, 'is_string')) === count($input))) {
+                    $values[$key] = $input;
+                }
+            }
+        }
+
+        $updates = [];
+        foreach ($settingGroups as $group => $settings) {
+            foreach ($settings as $key => $label) {
+                $input = $_POST[$key] ?? (str_ends_with($key, '_FROM') ? [] : '');
+                if (str_ends_with($key, '_FROM')) {
+                    if (!is_array($input)) {
+                        throw new InvalidArgumentException("{$group}の{$label}を確認してください。");
+                    }
+                    foreach (array_values($input) as $index => $address) {
+                        if (!is_string($address) || preg_match('/[|｜\r\n]/u', $address) === 1
+                            || (trim($address) !== '' && filter_var(trim($address), FILTER_VALIDATE_EMAIL) === false)) {
+                            $number = $index + 1;
+                            throw new InvalidArgumentException("{$group}の{$label}（{$number}件目）には、メールアドレスを1件入力してください。");
+                        }
+                    }
+                    $updates[$key] = EnvFileEditor::listToEnv($input);
+                } else {
+                    if (!is_string($input)) {
+                        throw new InvalidArgumentException("{$group}の{$label}を確認してください。");
+                    }
+                    $updates[$key] = trim($input);
+                }
             }
         }
 
@@ -111,7 +139,6 @@ try {
     }
 } catch (Throwable $e) {
     $error = $e->getMessage();
-    $values = array_replace($defaults, EnvFileEditor::readValues($envPath));
 }
 
 renderSettings($settingGroups, $values, (string) $_SESSION['mail_settings_csrf'], $message, $error);
@@ -150,7 +177,7 @@ function renderLogin(string $csrf, ?string $error): void
 
 /**
  * @param array<string, array<string, string>> $settingGroups
- * @param array<string, string> $values
+ * @param array<string, string|array<string>> $values
  */
 function renderSettings(array $settingGroups, array $values, string $csrf, ?string $message, ?string $error): void
 {
@@ -176,7 +203,21 @@ function renderSettings(array $settingGroups, array $values, string $csrf, ?stri
             $value = $values[$key] ?? '';
             echo '<div class="setting">';
             echo '<div><h3>' . h($label) . '</h3><code>' . h($key) . '</code></div>';
-            echo '<input type="text" name="' . h($key) . '" value="' . h($value) . '">';
+            if (str_ends_with($key, '_FROM')) {
+                $addresses = is_array($value) ? array_values($value) : EnvFileEditor::envToList($value);
+                echo '<div class="email-list" data-label="' . h($group . ' ' . $label) . '">';
+                echo '<div class="email-rows">';
+                foreach ($addresses ?: [''] as $index => $address) {
+                    $number = $index + 1;
+                    echo '<div class="email-row">';
+                    echo '<input type="email" name="' . h($key) . '[]" value="' . h($address) . '" aria-label="' . h($group . ' ' . $label . ' ' . $number) . '" placeholder="name@example.com">';
+                    echo '<button type="button" class="remove-email" aria-label="メールアドレス' . $number . 'を削除">削除</button>';
+                    echo '</div>';
+                }
+                echo '</div><button type="button" class="add-email">メールアドレスを追加</button></div>';
+            } else {
+                echo '<input type="text" name="' . h($key) . '" value="' . h(is_string($value) ? $value : '') . '" aria-label="' . h($group . ' ' . $label) . '">';
+            }
             echo '</div>';
         }
         echo '</section>';
@@ -184,6 +225,41 @@ function renderSettings(array $settingGroups, array $values, string $csrf, ?stri
 
     echo '<div class="actions"><button type="submit">保存</button></div>';
     echo '</form>';
+    echo <<<'HTML'
+    <script>
+        document.querySelectorAll('.email-list').forEach((list) => {
+            const rows = list.querySelector('.email-rows');
+            const updateLabels = () => {
+                rows.querySelectorAll('.email-row').forEach((row, index) => {
+                    row.querySelector('input').setAttribute('aria-label', `${list.dataset.label} ${index + 1}`);
+                    row.querySelector('button').setAttribute('aria-label', `メールアドレス${index + 1}を削除`);
+                });
+            };
+            list.querySelector('.add-email').addEventListener('click', () => {
+                const row = rows.firstElementChild.cloneNode(true);
+                const input = row.querySelector('input');
+                input.value = '';
+                rows.append(row);
+                updateLabels();
+                input.focus();
+            });
+            rows.addEventListener('click', (event) => {
+                const button = event.target.closest('.remove-email');
+                if (!button) return;
+                const row = button.closest('.email-row');
+                if (rows.children.length === 1) {
+                    row.querySelector('input').value = '';
+                    row.querySelector('input').focus();
+                } else {
+                    const nextRow = row.nextElementSibling || row.previousElementSibling;
+                    row.remove();
+                    updateLabels();
+                    nextRow.querySelector('input').focus();
+                }
+            });
+        });
+    </script>
+    HTML;
     renderFooter();
 }
 
@@ -199,7 +275,7 @@ function renderHeader(string $title): void
         h1{font-size:28px;margin:0 0 20px}
         h2{font-size:20px;margin:0;padding-bottom:10px;border-bottom:2px solid #9fb3c8}
         h3{font-size:16px;margin:0 0 4px}
-        code{color:#52606d;font-size:13px}
+        code{color:#52606d;font-size:13px;overflow-wrap:anywhere}
         .panel{background:#fff;border:1px solid #d9e2ec;border-radius:8px;padding:18px;margin:14px 0}
         .settings-group{margin:28px 0}
         .setting{padding:18px 0;border-bottom:1px solid #d9e2ec}
@@ -207,6 +283,12 @@ function renderHeader(string $title): void
         input{box-sizing:border-box;width:100%;border:1px solid #bcccdc;border-radius:6px;padding:10px 12px;font:inherit;background:#fff}
         .actions{position:sticky;bottom:0;background:rgba(246,247,249,.94);padding:16px 0;border-top:1px solid #d9e2ec}
         button{background:#0f609b;color:#fff;border:0;border-radius:6px;padding:10px 18px;font-weight:700;cursor:pointer}
+        .email-list,.email-rows{display:grid;gap:8px}
+        .email-row{display:flex;gap:8px;align-items:center}
+        .email-row input{flex:1;min-width:0}
+        .remove-email{flex:none;background:#fff;color:#9b1c1c;border:1px solid #d9e2ec}
+        .add-email{justify-self:start;background:#fff;color:#0f609b;border:1px solid #bcccdc}
+        input:focus-visible,button:focus-visible{outline:2px solid #0f609b;outline-offset:2px}
         .alert{border-radius:6px;padding:12px 14px}
         .success{background:#e3f9e5;color:#276749}
         .error{background:#ffe3e3;color:#9b1c1c}
