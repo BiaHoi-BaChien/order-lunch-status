@@ -17,6 +17,10 @@ try {
     $values = EnvFileEditor::readValues($path);
     assertSame('forms-receipts-noreply@google.com', $values['MAIL_MATSUYA_ORDER_FROM'] ?? null);
     assertSame(['receipt-a@example.com', 'receipt-b@example.com'], EnvFileEditor::envToList($values['MAIL_MATSUYA_RECEIPT_FROM'] ?? ''));
+    assertSame(['receipt-a@example.com', 'receipt-b@example.com'], EnvFileEditor::envToList(' receipt-a@example.com ｜ receipt-b@example.com | '));
+    assertSame([], EnvFileEditor::envToList(' ｜ | '));
+    assertSame('receipt-a@example.com|receipt-b@example.com', EnvFileEditor::listToEnv([' receipt-a@example.com ', '', ' ', 'receipt-b@example.com']));
+    assertSame('', EnvFileEditor::listToEnv(['', ' ']));
 
     EnvFileEditor::updateValues($path, [
         'MAIL_MATSUYA_ORDER_FROM' => '',
