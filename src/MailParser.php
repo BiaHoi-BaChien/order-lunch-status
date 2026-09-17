@@ -70,7 +70,10 @@ final class MailParser
     {
         $text = $this->extractText($message);
         $dateAnswer = $this->answerFor($text, ['注文日']);
-        if ($dateAnswer === null || preg_match('/(\d{4})年(\d{1,2})月(\d{1,2})日/u', mb_convert_kana($dateAnswer, 'n', 'UTF-8'), $date) !== 1) {
+        if ($dateAnswer === null) {
+            return $this->parseKimuraPrepaidOrderConfirmation($text);
+        }
+        if (preg_match('/(\d{4})年(\d{1,2})月(\d{1,2})日/u', mb_convert_kana($dateAnswer, 'n', 'UTF-8'), $date) !== 1) {
             throw new RuntimeException('RAMEN KIMURAの注文日を抽出できません');
         }
         if (!checkdate((int) $date[2], (int) $date[3], (int) $date[1])) {
@@ -96,6 +99,60 @@ final class MailParser
             'item_name' => $itemName,
             'note' => '合計金額: ' . $amount,
         ];
+    }
+
+    /**
+     * @return array{date:string,item_name:string,note:string}
+     */
+    private function parseKimuraPrepaidOrderConfirmation(string $text): array
+    {
+        $text = mb_convert_kana(str_replace("\u{00A0}", ' ', $text), 'n', 'UTF-8');
+        $amountPattern = '(?:\d{1,3}(?:,\d{3})+|\d+) *VND';
+        $datePattern = '^ *(\d{4})-(\d{1,2})-(\d{1,2}) +[^\n]+\n';
+        $count = preg_match_all(
+            '/' . $datePattern . '(.*?)^ *お支払い +(' . $amountPattern . ')(?= |（|\(|$)[^\n]*$/msu',
+            $text,
+            $summaries,
+            PREG_SET_ORDER
+        );
+        if ($count === false || $count === 0 || preg_match_all('/' . $datePattern . '/mu', $text) !== $count) {
+            throw new RuntimeException('RAMEN KIMURAの注文内容を抽出できません');
+        }
+
+        $order = null;
+        $previousComparison = null;
+        foreach ($summaries as $summary) {
+            if (!checkdate((int) $summary[2], (int) $summary[3], (int) $summary[1])) {
+                throw new RuntimeException("RAMEN KIMURAの注文日が実在しません: {$summary[1]}-{$summary[2]}-{$summary[3]}");
+            }
+            // 1日・1商品のみを登録する。複数注文を先頭の注文にまとめない。
+            if (preg_match('/\A\s*(\S[^\n]*?) *× *([1-9]\d*) +(' . $amountPattern . ')\s*\z/u', $summary[4], $item) !== 1) {
+                throw new RuntimeException('RAMEN KIMURAのメニューを一意に抽出できません');
+            }
+
+            $parsed = [
+                'date' => sprintf('%04d-%02d-%02d', (int) $summary[1], (int) $summary[2], (int) $summary[3]),
+                'item_name' => trim($item[1]),
+                'note' => '合計金額: ' . $summary[5],
+            ];
+            if ($item[2] !== '1') {
+                $parsed['note'] .= '、数量: ' . $item[2];
+            }
+            // 表示用の備考とは分け、金額は桁落ちのない数字列に正規化して比較する。
+            $comparison = [
+                'date' => $parsed['date'],
+                'item_name' => $parsed['item_name'],
+                'quantity' => $item[2],
+                'amount' => ltrim(str_replace([',', ' ', 'VND'], '', $summary[5]), '0') ?: '0',
+            ];
+            if ($previousComparison !== null && $previousComparison !== $comparison) {
+                throw new RuntimeException('RAMEN KIMURAの注文内容が複数あります');
+            }
+            $previousComparison = $comparison;
+            $order ??= $parsed;
+        }
+
+        return $order;
     }
 
     /**
