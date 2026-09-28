@@ -18,51 +18,44 @@ final class MailSettingsLoginLimiter
         }
     }
 
-    public function retryAfter(string $clientKey, ?int $now = null): int
+    /** @return array{authenticated: bool, limited: bool, retry_after: int} */
+    public function attempt(string $clientKey, callable $verify, ?int $now = null): array
     {
-        $now ??= time();
-
-        return $this->withState($now, function (array &$state) use ($clientKey, $now): int {
-            return $this->retryAfterFromState($state, $this->clientId($clientKey), $now);
-        });
-    }
-
-    public function recordFailure(string $clientKey, ?int $now = null): int
-    {
-        $now ??= time();
-
-        return $this->withState($now, function (array &$state) use ($clientKey, $now): int {
+        // Keep admission, password verification and accounting under the same lock.
+        return $this->withState($now, function (array &$state, int $checkedAt) use ($clientKey, $verify, $now): array {
             $clientId = $this->clientId($clientKey);
-            $retryAfter = $this->retryAfterFromState($state, $clientId, $now);
+            $retryAfter = $this->retryAfterFromState($state, $clientId, $checkedAt);
             if ($retryAfter > 0) {
-                return $retryAfter;
+                return ['authenticated' => false, 'limited' => true, 'retry_after' => $retryAfter];
+            }
+            if ($verify() === true) {
+                unset($state['clients'][$clientId]);
+
+                return ['authenticated' => true, 'limited' => false, 'retry_after' => 0];
             }
 
+            // Lock wait and password verification must not consume the new backoff.
+            $failedAt = $now ?? time();
+            $state = $this->pruneState($state, $failedAt);
             $state['clients'][$clientId] ??= ['failures' => [], 'blocked_until' => 0];
-            $state['clients'][$clientId]['failures'][] = $now;
-            $state['global']['failures'][] = $now;
+            $state['clients'][$clientId]['failures'][] = $failedAt;
+            $state['global']['failures'][] = $failedAt;
 
             $clientFailures = count($state['clients'][$clientId]['failures']);
             $clientDelay = $clientFailures >= $this->maxClientFailures
                 ? $this->lockoutSeconds
                 : min(2 ** ($clientFailures - 1), 30);
-            $state['clients'][$clientId]['blocked_until'] = $now + $clientDelay;
+            $state['clients'][$clientId]['blocked_until'] = $failedAt + $clientDelay;
 
             if (count($state['global']['failures']) >= $this->maxGlobalFailures) {
-                $state['global']['blocked_until'] = $now + $this->globalLockoutSeconds;
+                $state['global']['blocked_until'] = $failedAt + $this->globalLockoutSeconds;
             }
 
-            return $this->retryAfterFromState($state, $clientId, $now);
-        });
-    }
-
-    public function recordSuccess(string $clientKey, ?int $now = null): void
-    {
-        $now ??= time();
-        $this->withState($now, function (array &$state) use ($clientKey): null {
-            unset($state['clients'][$this->clientId($clientKey)]);
-
-            return null;
+            return [
+                'authenticated' => false,
+                'limited' => false,
+                'retry_after' => $this->retryAfterFromState($state, $clientId, $failedAt),
+            ];
         });
     }
 
@@ -81,7 +74,7 @@ final class MailSettingsLoginLimiter
         return max(0, $blockedUntil - $now);
     }
 
-    private function withState(int $now, callable $callback): mixed
+    private function withState(?int $now, callable $callback): mixed
     {
         $directory = dirname($this->statePath);
         if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
@@ -102,9 +95,10 @@ final class MailSettingsLoginLimiter
             $raw = stream_get_contents($handle);
             $decoded = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
             $state = is_array($decoded) ? $decoded : [];
+            $now ??= time();
             $state = $this->pruneState($state, $now);
 
-            $result = $callback($state);
+            $result = $callback($state, $now);
             $json = json_encode($state, JSON_UNESCAPED_SLASHES);
             if ($json === false) {
                 throw new RuntimeException('ログイン試行状態を生成できません');
