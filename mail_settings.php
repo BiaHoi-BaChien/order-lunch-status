@@ -60,10 +60,13 @@ if ($passwordConfigured && !($_SESSION['mail_settings_authenticated'] ?? false))
                 sys_get_temp_dir() . '/order-lunch-status-mail-settings-login-rate-limit.json'
             );
             $clientKey = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-            $retryAfter = $limiter->retryAfter($clientKey);
+            $attempt = $limiter->attempt(
+                $clientKey,
+                static fn (): bool => $auth->verify((string) ($_POST['password'] ?? ''))
+            );
+            $retryAfter = $attempt['retry_after'];
 
-            if ($retryAfter === 0 && $auth->verify((string) ($_POST['password'] ?? ''))) {
-                $limiter->recordSuccess($clientKey);
+            if ($attempt['authenticated']) {
                 if (!session_regenerate_id(true)) {
                     throw new RuntimeException('ログインセッションを更新できません');
                 }
@@ -72,8 +75,7 @@ if ($passwordConfigured && !($_SESSION['mail_settings_authenticated'] ?? false))
                 exit;
             }
 
-            if ($retryAfter === 0) {
-                $retryAfter = $limiter->recordFailure($clientKey);
+            if (!$attempt['limited']) {
                 $error = 'パスワードが正しくありません。';
             } else {
                 $error = 'ログイン試行回数が多すぎます。';

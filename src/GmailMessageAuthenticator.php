@@ -81,26 +81,117 @@ final class GmailMessageAuthenticator
 
     private function isTrustedPass(string $result, string $expectedAddress, string $expectedDomain): bool
     {
-        $normalized = strtolower(trim($result));
-        if (preg_match('/^mx\.google\.com\s*;/', $normalized) !== 1) {
+        $clauses = $this->authenticationResultClauses(strtolower($result));
+        if ($clauses === [] || preg_match('/^mx\.google\.com(?:\s+1)?$/D', trim(array_shift($clauses))) !== 1) {
             return false;
         }
 
-        if (str_contains($normalized, 'dmarc=pass')
-            && preg_match('/\bheader\.from=([a-z0-9.-]+)/', $normalized, $matches) === 1
-            && $this->domainAligns($matches[1], $expectedDomain)) {
-            return true;
+        foreach ($clauses as $clause) {
+            if (preg_match('/^\s*(dkim|dmarc|spf)(?:\s*\/\s*1)?\s*=\s*pass(?=\s|$)/', $clause, $method) !== 1) {
+                continue;
+            }
+            $properties = $this->resultProperties(substr($clause, strlen($method[0])));
+            if ($properties === null) {
+                continue;
+            }
+
+            $identity = $properties[match ($method[1]) {
+                'dkim' => 'header.d',
+                'dmarc' => 'header.from',
+                'spf' => 'smtp.mailfrom',
+            }] ?? '';
+            if ($method[1] === 'spf') {
+                if (filter_var($identity, FILTER_VALIDATE_EMAIL) !== false && hash_equals($expectedAddress, $identity)) {
+                    return true;
+                }
+            } elseif (filter_var(rtrim($identity, '.'), FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) !== false
+                && $this->domainAligns($identity, $expectedDomain)) {
+                return true;
+            }
         }
 
-        if (str_contains($normalized, 'dkim=pass')
-            && preg_match('/\bheader\.d=([a-z0-9.-]+)/', $normalized, $matches) === 1
-            && $this->domainAligns($matches[1], $expectedDomain)) {
-            return true;
+        return false;
+    }
+
+    /** @return list<string> */
+    private function authenticationResultClauses(string $value): array
+    {
+        // RFC 8601: semicolons inside comments or quoted values are not result boundaries.
+        $value = preg_replace('/\r\n[ \t]+/', ' ', $value) ?? '';
+        if (preg_match('/[\x00-\x08\x0a-\x1f\x7f]/', $value) === 1) {
+            return [];
+        }
+        $clauses = [];
+        $clause = '';
+        $commentDepth = 0;
+        $quoted = false;
+        $escaped = false;
+        for ($i = 0, $length = strlen($value); $i < $length; $i++) {
+            $char = $value[$i];
+            if ($escaped) {
+                if ($commentDepth === 0) {
+                    $clause .= $char;
+                }
+                $escaped = false;
+            } elseif ($char === '\\' && ($quoted || $commentDepth > 0)) {
+                if ($commentDepth === 0) {
+                    $clause .= $char;
+                }
+                $escaped = true;
+            } elseif ($commentDepth > 0) {
+                if ($char === '(') {
+                    $commentDepth++;
+                } elseif ($char === ')') {
+                    $commentDepth--;
+                }
+            } elseif ($char === '"') {
+                $quoted = !$quoted;
+                $clause .= $char;
+            } elseif ($quoted) {
+                $clause .= $char;
+            } elseif ($char === '(') {
+                $commentDepth = 1;
+                $clause .= ' ';
+            } elseif ($char === ')') {
+                return [];
+            } elseif ($char === ';') {
+                $clauses[] = $clause;
+                $clause = '';
+            } else {
+                $clause .= $char;
+            }
+        }
+        if ($quoted || $commentDepth > 0 || $escaped) {
+            return [];
+        }
+        $clauses[] = $clause;
+
+        return $clauses;
+    }
+
+    /** @return array<string, string>|null */
+    private function resultProperties(string $value): ?array
+    {
+        $properties = [];
+        $offset = 0;
+        $pattern = '~\G\s+([a-z][a-z0-9_-]*(?:\s*\.\s*[a-z][a-z0-9_-]*)?)\s*=\s*("(?:[^"\\\\]|\\\\.)*"|[^\s"();]+)~';
+        while ($offset < strlen($value) && trim(substr($value, $offset)) !== '') {
+            if (preg_match($pattern, $value, $matches, 0, $offset) !== 1) {
+                return null;
+            }
+            $key = preg_replace('/\s+/', '', $matches[1]);
+            if (isset($properties[$key])) {
+                return null;
+            }
+            $propertyValue = $matches[2];
+            if ($propertyValue[0] === '"') {
+                $propertyValue = preg_replace('/\\\\(.)/s', '$1', substr($propertyValue, 1, -1));
+            }
+            $properties[$key] = $propertyValue;
+            $offset += strlen($matches[0]);
         }
 
-        return preg_match('/(?:^|;)\s*spf=pass\b[^;]*\bsmtp\.mailfrom=([^;\s]+)/', $normalized, $matches) === 1
-            && filter_var($matches[1], FILTER_VALIDATE_EMAIL) !== false
-            && hash_equals($expectedAddress, $matches[1]);
+        return $properties;
     }
 
     private function domainAligns(string $authenticatedDomain, string $expectedDomain): bool
