@@ -40,8 +40,7 @@ PHP);
         'NOTION_API_KEY' => 'test-api-key',
         'NOTION_ORDER_DATA_SOURCE_ID' => 'test-orders',
         'NOTION_TICKET_DATA_SOURCE_ID' => 'test-tickets',
-        'MAIL_MATSUYA_ORDER_FROM' => 'forms-receipts-noreply@google.com',
-        'MAIL_MATSUYA_RECEIPT_FROM' => 'matsuya@example.com',
+        'MAIL_MATSUYA_ORDER_FROM' => 'matsuya@example.com',
         'MAIL_RAMEN_KIMURA_ORDER_FROM' => 'kimura@example.com',
         'RUN_WINDOW_ENABLED' => 'false',
         'SLACK_NOTIFICATION_ENABLED' => 'false',
@@ -60,7 +59,7 @@ PHP);
         }
     }
 
-    foreach ([[], ['MAIL_RAMEN_KIMURA_RECEIPT_FROM' => 'old-receipt@example.com']] as $legacySettings) {
+    foreach ([[], ['MAIL_MATSUYA_RECEIPT_FROM' => '', 'MAIL_RAMEN_KIMURA_RECEIPT_FROM' => 'old-receipt@example.com']] as $legacySettings) {
         [$exitCode, $output] = runBatch($fixtureDir, $baseSettings + $legacySettings, $environment);
         assertSame(0, $exitCode, $output);
         assertSame(true, str_contains($output, 'BATCH_SERVICE_STARTED'), $output);

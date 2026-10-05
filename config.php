@@ -221,10 +221,11 @@ $slackWebhookUrl = envValue('SLACK_WEBHOOK_URL', '');
 $runWindowEnabled = envBool('RUN_WINDOW_ENABLED', true);
 $runWindowStartHour = (int) envValue('RUN_WINDOW_START_HOUR', '9');
 $runWindowEndHour = (int) envValue('RUN_WINDOW_END_HOUR', '23');
-$matsuyaMailOrderFrom = envString('MAIL_MATSUYA_ORDER_FROM', 'forms-receipts-noreply@google.com');
-$matsuyaMailOrderSubject = envValue('MAIL_MATSUYA_ORDER_SUBJECT', 'フォームにご記入いただきありがとうございます');
-$matsuyaMailReceiptFrom = envString('MAIL_MATSUYA_RECEIPT_FROM', '');
-$matsuyaMailReceiptSubject = envValue('MAIL_MATSUYA_RECEIPT_SUBJECT', '【松屋】お弁当注文受付確認');
+$matsuyaMailOrderFrom = envString('MAIL_MATSUYA_ORDER_FROM', 'matsuyavanphong@gmail.com');
+$matsuyaMailOrderSubject = trim(envValue('MAIL_MATSUYA_ORDER_SUBJECT', '【松屋フーズ】お弁当ご注文受付完了のお知らせ'));
+if (in_array($matsuyaMailOrderSubject, ['', 'フォームにご記入いただきありがとうございます'], true)) {
+    $matsuyaMailOrderSubject = '【松屋フーズ】お弁当ご注文受付完了のお知らせ';
+}
 $ramenKimuraMailOrderFrom = envString('MAIL_RAMEN_KIMURA_ORDER_FROM', 'tobe.kimura@gmail.com');
 $ramenKimuraMailOrderSubject = trim(envValue('MAIL_RAMEN_KIMURA_ORDER_SUBJECT', 'ご注文を承りました'));
 // 旧既定件名が残る設置先も、1通で受付が完了する新メールへ移行する。
@@ -260,8 +261,6 @@ return [
     'run_window_end_hour' => $runWindowEndHour,
     'matsuya_mail_order_from' => $matsuyaMailOrderFrom,
     'matsuya_mail_order_subject' => $matsuyaMailOrderSubject,
-    'matsuya_mail_receipt_from' => $matsuyaMailReceiptFrom,
-    'matsuya_mail_receipt_subject' => $matsuyaMailReceiptSubject,
     'ramen_kimura_mail_order_from' => $ramenKimuraMailOrderFrom,
     'ramen_kimura_mail_order_subject' => $ramenKimuraMailOrderSubject,
     'gmail_processed_label_name' => $gmailProcessedLabelName,

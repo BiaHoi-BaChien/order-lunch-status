@@ -10,13 +10,13 @@ register_shutdown_function(static fn () => is_file($turnPath) && unlink($turnPat
 (new ReflectionProperty(LunchOrderService::class, 'config'))->setValue($service, [
     'gmail_receipt_turn_path' => $turnPath,
 ]);
-$receiptSearchLimits = new ReflectionMethod(LunchOrderService::class, 'receiptSearchLimits');
+$mailSearchLimits = new ReflectionMethod(LunchOrderService::class, 'mailSearchLimits');
 
-// 松屋の受付メールとKIMURAの単一メールの検索枠を交互に割り当てる。
-assertSame([0, 0], $receiptSearchLimits->invoke($service, 0));
-assertSame([0, 1], $receiptSearchLimits->invoke($service, 1));
-assertSame([1, 0], $receiptSearchLimits->invoke($service, 1));
-assertSame([1, 1], $receiptSearchLimits->invoke($service, 2));
+// 松屋とKIMURAの単一メールの検索枠を交互に割り当てる。
+assertSame([0, 0], $mailSearchLimits->invoke($service, 0));
+assertSame([0, 1], $mailSearchLimits->invoke($service, 1));
+assertSame([1, 0], $mailSearchLimits->invoke($service, 1));
+assertSame([1, 1], $mailSearchLimits->invoke($service, 2));
 
 echo "LunchOrderService receipt test passed\n";
 
