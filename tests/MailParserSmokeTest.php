@@ -114,49 +114,6 @@ assertSame('2026-08-19', $kimuraOrder['date']);
 assertSame('チャーハン唐揚げ弁当', $kimuraOrder['item_name']);
 assertSame('合計金額: 80000VND', $kimuraOrder['note']);
 
-$receipt = $parser->parseReceipt([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/plain',
-        'body' => ['data' => base64Url('5月8日（金）のホーチミン日本人学校お弁当（松屋）の注文を受け付けました。')],
-    ],
-]);
-
-assertSame('2026-05-08', $receipt['date']);
-
-$receiptWithNoise = $parser->parseReceipt([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/plain',
-        'body' => ['data' => base64Url("受付番号 5月0日\n5月8日（金）のホーチミン日本人学校お弁当（松屋）の注文を受け付けました。")],
-    ],
-]);
-
-assertSame('2026-05-08', $receiptWithNoise['date']);
-
-$receiptWithFullWidthDate = $parser->parseReceipt([
-    'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-    'payload' => [
-        'mimeType' => 'text/plain',
-        'body' => ['data' => base64Url('5月６日（水）のホーチミン日本人学校お弁当（松屋）の注文を受け付けました。')],
-    ],
-]);
-
-assertSame('2026-05-06', $receiptWithFullWidthDate['date']);
-
-try {
-    $parser->parseReceipt([
-        'internalDate' => (string) (strtotime('2026-05-04 10:00:00') * 1000),
-        'payload' => [
-            'mimeType' => 'text/plain',
-            'body' => ['data' => base64Url('5月0日（月）のホーチミン日本人学校お弁当（松屋）の注文を受け付けました。')],
-        ],
-    ]);
-    throw new RuntimeException('Invalid receipt date was not rejected');
-} catch (RuntimeException $e) {
-    assertSame(true, str_contains($e->getMessage(), '実在しない日付です'));
-}
-
 echo "MailParser smoke test passed\n";
 
 function base64Url(string $value): string

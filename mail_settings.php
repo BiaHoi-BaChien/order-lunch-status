@@ -14,8 +14,6 @@ $settingGroups = [
     '松屋' => [
         'MAIL_MATSUYA_ORDER_FROM' => '注文確認メールの送信元',
         'MAIL_MATSUYA_ORDER_SUBJECT' => '注文確認メールの件名',
-        'MAIL_MATSUYA_RECEIPT_FROM' => '受付確認メールの送信元',
-        'MAIL_MATSUYA_RECEIPT_SUBJECT' => '受付確認メールの件名',
     ],
     'RAMEN KIMURA' => [
         'MAIL_RAMEN_KIMURA_ORDER_FROM' => '「ご注文を承りました」メールの送信元',
@@ -24,10 +22,8 @@ $settingGroups = [
 ];
 
 $defaults = [
-    'MAIL_MATSUYA_ORDER_FROM' => 'forms-receipts-noreply@google.com',
-    'MAIL_MATSUYA_ORDER_SUBJECT' => 'フォームにご記入いただきありがとうございます',
-    'MAIL_MATSUYA_RECEIPT_FROM' => '',
-    'MAIL_MATSUYA_RECEIPT_SUBJECT' => '【松屋】お弁当注文受付確認',
+    'MAIL_MATSUYA_ORDER_FROM' => 'matsuyavanphong@gmail.com',
+    'MAIL_MATSUYA_ORDER_SUBJECT' => '【松屋フーズ】お弁当ご注文受付完了のお知らせ',
     'MAIL_RAMEN_KIMURA_ORDER_FROM' => 'tobe.kimura@gmail.com',
     'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => 'ご注文を承りました',
 ];
@@ -35,6 +31,10 @@ $defaults = [
 $message = null;
 $error = null;
 $envFileValues = EnvFileEditor::readValues($envPath);
+$matsuyaSubject = trim($envFileValues['MAIL_MATSUYA_ORDER_SUBJECT'] ?? '');
+$envFileValues['MAIL_MATSUYA_ORDER_SUBJECT'] = in_array($matsuyaSubject, ['', 'フォームにご記入いただきありがとうございます'], true)
+    ? $defaults['MAIL_MATSUYA_ORDER_SUBJECT']
+    : $matsuyaSubject;
 $kimuraSubject = trim($envFileValues['MAIL_RAMEN_KIMURA_ORDER_SUBJECT'] ?? '');
 $envFileValues['MAIL_RAMEN_KIMURA_ORDER_SUBJECT'] = in_array($kimuraSubject, ['', '【お弁当注文確認】'], true)
     ? $defaults['MAIL_RAMEN_KIMURA_ORDER_SUBJECT']
@@ -198,9 +198,7 @@ function renderSettings(array $settingGroups, array $values, string $csrf, ?stri
     foreach ($settingGroups as $group => $settings) {
         echo '<section class="settings-group">';
         echo '<h2>' . h($group) . '</h2>';
-        if ($group === 'RAMEN KIMURA') {
-            echo '<p>このメール1通で注文内容を登録し、受付済に更新します。</p>';
-        }
+        echo '<p>このメール1通で注文内容を登録し、受付済に更新します。</p>';
         foreach ($settings as $key => $label) {
             $value = $values[$key] ?? '';
             echo '<div class="setting">';

@@ -40,13 +40,15 @@ final class LunchOrderService
 
         $summary['initial_created'] = $this->ensureInitialRecords();
 
-        $remainingMessageBudget = (int) ($this->config['gmail_max_messages_per_run'] ?? 100);
-        $orderSearchLimit = max(1, intdiv($remainingMessageBudget, 2));
-        $orderMessages = $this->gmail->searchMessages($this->gmailSearchQuery(
-            (string) ($this->config['matsuya_mail_order_subject'] ?? 'フォームにご記入いただきありがとうございます'),
-            (string) ($this->config['matsuya_mail_order_from'] ?? 'forms-receipts-noreply@google.com')
-        ), $orderSearchLimit);
-        $remainingMessageBudget -= count($orderMessages);
+        [$orderSearchLimit, $kimuraSearchLimit] = $this->mailSearchLimits(
+            (int) ($this->config['gmail_max_messages_per_run'] ?? 100)
+        );
+        $orderMessages = $orderSearchLimit > 0
+            ? $this->gmail->searchMessages($this->gmailSearchQuery(
+                (string) ($this->config['matsuya_mail_order_subject'] ?? '【松屋フーズ】お弁当ご注文受付完了のお知らせ'),
+                (string) ($this->config['matsuya_mail_order_from'] ?? 'matsuyavanphong@gmail.com')
+            ), $orderSearchLimit)
+            : [];
         $summary['order_confirmation_found'] = count($orderMessages);
         $this->logger->info('注文確認メール検索件数: ' . count($orderMessages));
 
@@ -65,33 +67,19 @@ final class LunchOrderService
             }
         }
 
-        [$matsuyaReceiptSearchLimit, $kimuraReceiptSearchLimit] = $this->receiptSearchLimits($remainingMessageBudget);
-        $receiptMessages = $matsuyaReceiptSearchLimit > 0
-            ? array_map(static fn (array $message): array => $message + ['shop' => 'default'], $this->gmail->searchMessages($this->gmailSearchQuery(
-                (string) ($this->config['matsuya_mail_receipt_subject'] ?? '【松屋】お弁当注文受付確認'),
-                (string) ($this->config['matsuya_mail_receipt_from'] ?? '')
-            ), $matsuyaReceiptSearchLimit))
-            : [];
-        $kimuraReceiptMessages = $kimuraReceiptSearchLimit > 0
-            ? array_map(static fn (array $message): array => $message + ['shop' => self::KIMURA_SHOP], $this->gmail->searchMessages($this->gmailSearchQuery(
+        $receiptMessages = $kimuraSearchLimit > 0
+            ? $this->gmail->searchMessages($this->gmailSearchQuery(
                 trim((string) ($this->config['ramen_kimura_mail_order_subject'] ?? 'ご注文を承りました')),
                 (string) ($this->config['ramen_kimura_mail_order_from'] ?? 'tobe.kimura@gmail.com')
-            ), $kimuraReceiptSearchLimit))
+            ), $kimuraSearchLimit)
             : [];
-        $this->logger->info(self::KIMURA_SHOP . '「ご注文を承りました」メール検索件数: ' . count($kimuraReceiptMessages));
-        $receiptMessages = array_merge($receiptMessages, $kimuraReceiptMessages);
-        if ($remainingMessageBudget === 0) {
-            $this->logger->warn('1回あたりのGmail処理上限に達したため、注文受付メール検索をスキップしました');
-        }
+        $this->logger->info(self::KIMURA_SHOP . '「ご注文を承りました」メール検索件数: ' . count($receiptMessages));
         $summary['receipt_found'] = count($receiptMessages);
         $this->logger->info('注文受付メール検索件数: ' . count($receiptMessages));
 
         foreach ($receiptMessages as $messageRef) {
             try {
-                $isKimura = ($messageRef['shop'] ?? null) === self::KIMURA_SHOP;
-                $result = $isKimura
-                    ? $this->processKimuraOrderConfirmation($messageRef['id'])
-                    : $this->processReceipt($messageRef['id'], (string) $this->config['matsuya_mail_receipt_from']);
+                $result = $this->processKimuraOrderConfirmation($messageRef['id']);
                 $summary[$result === 'success' ? 'receipt_success' : 'receipt_skipped']++;
                 if ($this->labelProcessedMessage($messageRef['id'])) {
                     $summary['receipt_labeled']++;
@@ -165,7 +153,7 @@ final class LunchOrderService
     /**
      * @return array{int, int}
      */
-    private function receiptSearchLimits(int $budget): array
+    private function mailSearchLimits(int $budget): array
     {
         if ($budget < 1) {
             return [0, 0];
@@ -176,30 +164,30 @@ final class LunchOrderService
             return [$each, $each];
         }
 
-        return $this->kimuraGetsExtraReceiptSlot()
+        return $this->kimuraGetsExtraMailSlot()
             ? [$each, $each + 1]
             : [$each + 1, $each];
     }
 
-    private function kimuraGetsExtraReceiptSlot(): bool
+    private function kimuraGetsExtraMailSlot(): bool
     {
         $path = (string) ($this->config['gmail_receipt_turn_path'] ?? '');
         if ($path === '') {
-            throw new RuntimeException('受付メール検索順の状態ファイルが未設定です');
+            throw new RuntimeException('メール検索順の状態ファイルが未設定です');
         }
 
         $next = 'kimura';
         if (is_file($path)) {
             $contents = file_get_contents($path);
             if ($contents === false) {
-                throw new RuntimeException("受付メール検索順の状態ファイルを読み込めません: {$path}");
+                throw new RuntimeException("メール検索順の状態ファイルを読み込めません: {$path}");
             }
             $next = trim($contents);
         }
 
         $kimuraGetsExtraSlot = $next !== 'matsuya';
         if (file_put_contents($path, $kimuraGetsExtraSlot ? 'matsuya' : 'kimura', LOCK_EX) === false) {
-            throw new RuntimeException("受付メール検索順の状態ファイルを更新できません: {$path}");
+            throw new RuntimeException("メール検索順の状態ファイルを更新できません: {$path}");
         }
 
         return $kimuraGetsExtraSlot;
@@ -235,10 +223,15 @@ final class LunchOrderService
 
         $status = $this->selectName($page, '状況');
         if (in_array($status, ['注文済', '受付済'], true)) {
-            $this->logger->info("既に処理済みのためスキップ: date={$order['date']}, status={$status}");
-            return 'skipped';
+            if ($this->selectName($page, 'お店') !== $this->config['shop_name'] || $this->urlValue($page, '注文確認メール') !== $url) {
+                throw new RuntimeException("同日の注文が既に登録されています: date={$order['date']}, status={$status}");
+            }
+            if ($status === '受付済' && $this->urlValue($page, '受付確認メール') === $url) {
+                $this->logger->info("既に処理済みのためスキップ: date={$order['date']}, status={$status}");
+                return 'skipped';
+            }
         }
-        if (!in_array($status, ['利用しない', '未注文', null], true)) {
+        if (!in_array($status, ['利用しない', '未注文', '注文済', '受付済', null], true)) {
             $this->logger->warn("想定外の状況を更新します: date={$order['date']}, current_status={$status}");
         }
 
@@ -252,11 +245,12 @@ final class LunchOrderService
             '品名' => ['title' => [['text' => ['content' => $order['item_name']]]]],
             '日付' => ['date' => ['start' => $order['date']]],
             '曜日' => ['select' => ['name' => $this->weekday($date)]],
-            '状況' => ['select' => ['name' => '注文済']],
+            '状況' => ['select' => ['name' => '受付済']],
             'サイズ' => ['select' => ['name' => $order['size']]],
             'お店' => ['select' => ['name' => $this->config['shop_name']]],
             '備考' => ['rich_text' => $order['note'] === '' ? [] : [['text' => ['content' => $order['note']]]]],
             '注文確認メール' => ['url' => $url],
+            '受付確認メール' => ['url' => $url],
             'お弁当チケット' => ['relation' => [['id' => (string) $ticket['id']]]],
         ];
         $mappedProperties = $this->mappedProperties(
@@ -323,42 +317,6 @@ final class LunchOrderService
         ]);
 
         $this->logger->info(self::KIMURA_SHOP . "注文受付完了: date={$order['date']}, message_id={$messageId}");
-
-        return 'success';
-    }
-
-    private function processReceipt(string $messageId, string $expectedSender): string
-    {
-        $message = $this->gmail->getMessage($messageId);
-        $this->messageAuthenticator->assertAuthentic($message, $expectedSender);
-        $receipt = $this->parser->parseReceipt($message);
-        if ($receipt['warn_previous_year']) {
-            $this->logger->warn("受付メールの日付が前年の可能性があります: date={$receipt['date']}, message_id={$messageId}");
-        }
-
-        $page = $this->notion->findOrderByDate($receipt['date']);
-        if ($page === null) {
-            throw new RuntimeException("受付メールに対応する注文レコードなし: date={$receipt['date']}");
-        }
-
-        $status = $this->selectName($page, '状況');
-        $url = $this->gmail->messageUrl($messageId);
-        $currentUrl = $this->urlValue($page, '受付確認メール');
-        if ($currentUrl === $url && $status === '受付済') {
-            $this->logger->info("受付確認メールは既に処理済みのためスキップ: date={$receipt['date']}, message_id={$messageId}");
-            return 'skipped';
-        }
-
-        if (in_array($status, ['未注文', '利用しない'], true)) {
-            $this->logger->warn("注文済でないレコードを受付済に更新: date={$receipt['date']}, current_status={$status}");
-        }
-
-        $this->notion->updateOrder((string) $page['id'], [
-            '状況' => ['select' => ['name' => '受付済']],
-            '受付確認メール' => ['url' => $url],
-        ]);
-
-        $this->logger->info("注文受付メール処理成功: date={$receipt['date']}, message_id={$messageId}");
 
         return 'success';
     }

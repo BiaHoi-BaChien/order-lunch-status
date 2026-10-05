@@ -155,26 +155,6 @@ final class MailParser
         return $order;
     }
 
-    /**
-     * @return array{date:string,warn_previous_year:bool}
-     */
-    public function parseReceipt(array $message): array
-    {
-        $text = $this->extractText($message);
-        $dateText = $this->extractReceiptDateText($text);
-        if ($dateText === null) {
-            throw new RuntimeException('受付メールの日付を抽出できません');
-        }
-
-        $receivedAt = $this->receivedAt($message);
-        $date = $this->parseJapaneseDate($dateText, $receivedAt);
-
-        return [
-            'date' => $date,
-            'warn_previous_year' => $this->isPreviousYearWarning($dateText, $receivedAt),
-        ];
-    }
-
     public function extractText(array $message): string
     {
         $payload = $message['payload'] ?? null;
@@ -231,30 +211,6 @@ final class MailParser
         return sprintf('%04d-%02d-%02d', $year, $orderMonth, $day);
     }
 
-    private function extractReceiptDateText(string $text): ?string
-    {
-        $patterns = [
-            '/(\d{1,2})月(\d{1,2})日(?:[（(][月火水木金土日][）)])?[^\n。]*注文を受け付けました/u',
-            '/(\d{1,2})月(\d{1,2})日(?:[（(][月火水木金土日][）)])?[^\n。]*注文受付/u',
-            '/(\d{1,2})月(\d{1,2})日(?:[（(][月火水木金土日][）)])?[^\n。]*お弁当/u',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $text, $m)) {
-                return $m[1] . '月' . $m[2] . '日';
-            }
-        }
-
-        if (preg_match_all('/(\d{1,2})月(\d{1,2})日(?:[（(][月火水木金土日][）)])?/u', $text, $matches, PREG_SET_ORDER) !== false) {
-            foreach ($matches as $match) {
-                if ((int) $match[2] >= 1) {
-                    return $match[1] . '月' . $match[2] . '日';
-                }
-            }
-        }
-
-        return null;
-    }
     private function receivedAt(array $message): DateTimeImmutable
     {
         if (!empty($message['internalDate'])) {
