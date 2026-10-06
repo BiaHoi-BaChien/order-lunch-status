@@ -188,7 +188,7 @@ assertSame('受付済', $properties['状況']['select']['name']);
 assertSame('松屋', $properties['お店']['select']['name']);
 assertSame('牛めし', $properties['品名']['title'][0]['text']['content']);
 assertSame('S', $properties['サイズ']['select']['name']);
-assertSame('なし、カスタマイズ: ネギ抜き', $properties['備考']['rich_text'][0]['text']['content']);
+assertSame('その他の要望: なし、カスタマイズ: ネギ抜き', $properties['備考']['rich_text'][0]['text']['content']);
 assertSame('ticket-B1234', $properties['お弁当チケット']['relation'][0]['id']);
 assertSame($matsuyaUrl, $properties['注文確認メール']['url']);
 assertSame($matsuyaUrl, $properties['受付確認メール']['url']);
