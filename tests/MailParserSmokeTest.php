@@ -46,7 +46,7 @@ assertSame('2026-09-09', $newMatsuyaOrder['date']);
 assertSame('B10788', $newMatsuyaOrder['ticket_no']);
 assertSame('キムチ牛めし B券', $newMatsuyaOrder['item_name']);
 assertSame('S', $newMatsuyaOrder['size']);
-assertSame('なし、カスタマイズ: ネギ抜き,つゆ多め', $newMatsuyaOrder['note']);
+assertSame('その他の要望: なし、カスタマイズ: ネギ抜き,つゆ多め', $newMatsuyaOrder['note']);
 
 $multipartMatsuyaOrder = $parser->parseOrderConfirmation([
     'payload' => [
@@ -68,7 +68,7 @@ assertSame('2026-09-11', $multipartMatsuyaOrder['date']);
 assertSame('A10345', $multipartMatsuyaOrder['ticket_no']);
 assertSame('オリジナルカレーA券', $multipartMatsuyaOrder['item_name']);
 assertSame('S', $multipartMatsuyaOrder['size']);
-assertSame('なし、カスタマイズ: 甘口', $multipartMatsuyaOrder['note']);
+assertSame('その他の要望: なし、カスタマイズ: 甘口', $multipartMatsuyaOrder['note']);
 
 $mappedMatsuyaOrder = $mappedParser->parseOrderConfirmation([
     'payload' => [

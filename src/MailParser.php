@@ -47,6 +47,9 @@ final class MailParser
         $size = strtoupper($sizeMatch[1]);
 
         $note = $this->answerFor($text, ['その他の要望']) ?? '';
+        if ($note !== '') {
+            $note = 'その他の要望: ' . $note;
+        }
         $customization = $this->answerFor($text, ['カスタマイズ']);
         if ($customization !== null && trim($customization) !== '') {
             $note = $this->appendNote($note, 'カスタマイズ: ' . $customization);
