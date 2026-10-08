@@ -149,8 +149,12 @@ final class SlackNotifier
         if (($order['size'] ?? '') !== '') {
             $parts[] = '[' . $order['size'] . ']';
         }
-        if (($order['note'] ?? '') !== '') {
-            $parts[] = $order['note'];
+        $note = $order['note'] ?? '';
+        if (($order['shop'] ?? '') === 'RAMEN KIMURA') {
+            $note = preg_replace('/\A合計金額: [^、]*(?:、|$)/u', '', $note) ?? $note;
+        }
+        if ($note !== '') {
+            $parts[] = $note;
         }
 
         return $this->escapeMrkdwn(implode(' ', $parts));

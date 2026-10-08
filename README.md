@@ -156,6 +156,8 @@ SLACK_WEBHOOK_URL=
 
 通知する場合は `SLACK_NOTIFICATION_ENABLED=true` に変更し、`SLACK_WEBHOOK_URL` にIncoming Webhook URLを設定してください。
 
+直近の注文状況では、RAMEN KIMURAの備考から `合計金額: 80,000 VND` などの金額部分を省略し、数量などの備考は表示します。Notionに保存済みの金額は保持し、登録済みの注文にも通知時にこの表示を適用します。
+
 ## cron例
 
 ```cron

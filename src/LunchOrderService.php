@@ -322,7 +322,7 @@ final class LunchOrderService
     }
 
     /**
-     * @return list<array{date:string,weekday:string,status:string,item_name:string,size:string,note:string}>
+     * @return list<array{date:string,weekday:string,status:string,shop:string,item_name:string,size:string,note:string}>
      */
     private function recentOrders(int $days): array
     {
@@ -346,6 +346,7 @@ final class LunchOrderService
                 'date' => $dateText,
                 'weekday' => $this->weekday($date),
                 'status' => is_array($page) ? ($this->selectName($page, '状況') ?? '未設定') : '未登録',
+                'shop' => is_array($page) ? ($this->selectName($page, 'お店') ?? '') : '',
                 'item_name' => is_array($page) ? $this->titleValue($page, '品名') : '',
                 'size' => is_array($page) ? ($this->selectName($page, 'サイズ') ?? '') : '',
                 'note' => is_array($page) ? $this->richTextValue($page, '備考') : '',
