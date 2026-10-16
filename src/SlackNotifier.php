@@ -99,7 +99,7 @@ final class SlackNotifier
             }
         }
 
-        return implode("\n", $lines);
+        return "[お弁当注文状況確認システム]\n" . implode("\n", $lines);
     }
 
     /**
