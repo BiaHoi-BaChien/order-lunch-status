@@ -128,24 +128,38 @@ final class MailParser
             if (!checkdate((int) $summary[2], (int) $summary[3], (int) $summary[1])) {
                 throw new RuntimeException("RAMEN KIMURAの注文日が実在しません: {$summary[1]}-{$summary[2]}-{$summary[3]}");
             }
-            // 1日・1商品のみを登録する。複数注文を先頭の注文にまとめない。
-            if (preg_match('/\A\s*(\S[^\n]*?) *× *([1-9]\d*) +(' . $amountPattern . ')\s*\z/u', $summary[4], $item) !== 1) {
-                throw new RuntimeException('RAMEN KIMURAのメニューを一意に抽出できません');
+            $items = [];
+            foreach (explode("\n", trim($summary[4])) as $line) {
+                if (trim($line) === '') {
+                    continue;
+                }
+                if (preg_match('/\A\s*(\S[^\n]*?) *× *([1-9]\d*) +(' . $amountPattern . ')\s*\z/u', $line, $item) !== 1) {
+                    throw new RuntimeException('RAMEN KIMURAのメニューを抽出できません');
+                }
+                $items[] = ['name' => trim($item[1]), 'quantity' => $item[2]];
+            }
+            if ($items === []) {
+                throw new RuntimeException('RAMEN KIMURAのメニューを抽出できません');
             }
 
             $parsed = [
                 'date' => sprintf('%04d-%02d-%02d', (int) $summary[1], (int) $summary[2], (int) $summary[3]),
-                'item_name' => trim($item[1]),
+                'item_name' => implode('、', array_column($items, 'name')),
                 'note' => '合計金額: ' . $summary[5],
             ];
-            if ($item[2] !== '1') {
-                $parsed['note'] .= '、数量: ' . $item[2];
+            $quantityNotes = [];
+            foreach ($items as $item) {
+                if ($item['quantity'] !== '1') {
+                    $quantityNotes[] = count($items) === 1 ? $item['quantity'] : $item['name'] . ' × ' . $item['quantity'];
+                }
+            }
+            if ($quantityNotes !== []) {
+                $parsed['note'] .= '、数量: ' . implode('、', $quantityNotes);
             }
             // 表示用の備考とは分け、金額は桁落ちのない数字列に正規化して比較する。
             $comparison = [
                 'date' => $parsed['date'],
-                'item_name' => $parsed['item_name'],
-                'quantity' => $item[2],
+                'items' => $items,
                 'amount' => ltrim(str_replace([',', ' ', 'VND'], '', $summary[5]), '0') ?: '0',
             ];
             if ($previousComparison !== null && $previousComparison !== $comparison) {
