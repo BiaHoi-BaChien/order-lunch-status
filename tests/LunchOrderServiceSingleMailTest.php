@@ -118,6 +118,21 @@ assertSame(1, $result['receipt_skipped']);
 assertSame(1, count($notion->updates));
 assertSame(1, $gmail->qrReads);
 
+// 同日の複数商品は品名を連結して受付済へ更新し、成功したメールにラベルを付ける。
+$multipleItemBody = str_replace('チャーハン唐揚げ弁当 × 1 80,000 VND', "チャーシュー丼 × 1 80,000 VND\n餃子（3個） × 1 25,000 VND", $kimuraBody);
+$multipleItemBody = str_replace('お支払い 80,000 VND', 'お支払い 105,000 VND', $multipleItemBody);
+[$service, $gmail, $notion] = fixture([
+    'kimura' => testMessage('ご注文を承りました', $multipleItemBody, 'kimura@example.com'),
+]);
+$result = $service->run();
+assertSame(0, $result['errors']);
+assertSame(1, $result['receipt_success']);
+$properties = $notion->pages['2026-09-21']['properties'];
+assertSame('受付済', $properties['状況']['select']['name']);
+assertSame('チャーシュー丼、餃子（3個）', $properties['品名']['title'][0]['text']['content']);
+assertSame('合計金額: 105,000 VND', $properties['備考']['rich_text'][0]['text']['content']);
+assertSame(['kimura' => 'processed'], $gmail->labels);
+
 // 旧処理の注文済レコードも、同じメールならQRの有無にかかわらず受付済に進む。
 foreach ([null, ['url' => 'https://example.com/qr.png'], ['data' => 'image', 'mime_type' => 'image/png']] as $qr) {
     [$service, $gmail, $notion] = fixture(['kimura' => $kimuraMail + ['qr' => $qr]], [
