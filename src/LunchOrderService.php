@@ -93,11 +93,12 @@ final class LunchOrderService
             }
         }
 
-        $kororiMessages = $kororiSearchLimit > 0
+        $kororiOrderLimit = $this->kororiOrderSearchLimit($kororiSearchLimit);
+        $kororiMessages = $kororiOrderLimit > 0
             ? $this->gmail->searchMessages($this->gmailSearchQuery(
                 (string) ($this->config['korori_mail_order_subject'] ?? 'おむすびランチ ご注文・お支払いのご案内'),
                 (string) ($this->config['korori_mail_order_from'] ?? 'createone.vn@gmail.com')
-            ), $kororiSearchLimit)
+            ), $kororiOrderLimit)
             : [];
         $summary['order_confirmation_found'] += count($kororiMessages);
         $this->logger->info(self::KORORI_SHOP . '注文メール検索件数: ' . count($kororiMessages));
@@ -111,6 +112,30 @@ final class LunchOrderService
             } catch (Throwable $e) {
                 $summary['errors']++;
                 $errorDetail = self::KORORI_SHOP . "注文メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}";
+                $summary['error_details'][] = $errorDetail;
+                $this->logger->error($errorDetail);
+            }
+        }
+
+        $kororiReceiptLimit = $kororiSearchLimit - count($kororiMessages);
+        $kororiReceipts = $kororiReceiptLimit > 0
+            ? $this->gmail->searchMessages($this->gmailSearchQuery(
+                'おむすびランチ お支払い確認のお知らせ',
+                (string) ($this->config['korori_mail_order_from'] ?? 'createone.vn@gmail.com')
+            ), $kororiReceiptLimit)
+            : [];
+        $summary['receipt_found'] += count($kororiReceipts);
+        $this->logger->info(self::KORORI_SHOP . '支払い確認メール検索件数: ' . count($kororiReceipts));
+        foreach ($kororiReceipts as $messageRef) {
+            try {
+                $result = $this->processKororiReceiptConfirmation($messageRef['id']);
+                $summary[$result === 'success' ? 'receipt_success' : 'receipt_skipped']++;
+                if ($this->labelProcessedMessage($messageRef['id'])) {
+                    $summary['receipt_labeled']++;
+                }
+            } catch (Throwable $e) {
+                $summary['errors']++;
+                $errorDetail = self::KORORI_SHOP . "支払い確認メール処理失敗: message_id={$messageRef['id']}, {$e->getMessage()}";
                 $summary['error_details'][] = $errorDetail;
                 $this->logger->error($errorDetail);
             }
@@ -214,6 +239,28 @@ final class LunchOrderService
         }
 
         return $limits;
+    }
+
+    private function kororiOrderSearchLimit(int $budget): int
+    {
+        if ($budget !== 1) {
+            return intdiv($budget + 1, 2);
+        }
+        $path = (string) ($this->config['gmail_receipt_turn_path'] ?? '');
+        if ($path === '') {
+            throw new RuntimeException('メール検索順の状態ファイルが未設定です');
+        }
+        $path .= '.korori.state';
+        $next = is_file($path) ? file_get_contents($path) : 'order';
+        if ($next === false) {
+            throw new RuntimeException("メール検索順の状態ファイルを読み込めません: {$path}");
+        }
+        $isOrderTurn = trim($next) !== 'receipt';
+        if (file_put_contents($path, $isOrderTurn ? 'receipt' : 'order', LOCK_EX) === false) {
+            throw new RuntimeException("メール検索順の状態ファイルを更新できません: {$path}");
+        }
+
+        return $isOrderTurn ? 1 : 0;
     }
 
     private function labelProcessedMessage(string $messageId): bool
@@ -350,6 +397,40 @@ final class LunchOrderService
         $this->notion->updateOrder($pageId, $properties);
 
         $this->logger->info($shop . "注文メール処理成功: date={$order['date']}, status={$targetStatus}, message_id={$messageId}");
+
+        return 'success';
+    }
+
+    private function processKororiReceiptConfirmation(string $messageId): string
+    {
+        $message = $this->gmail->getMessage($messageId);
+        $this->messageAuthenticator->assertAuthentic($message, (string) $this->config['korori_mail_order_from']);
+        $receipt = $this->parser->parseKororiReceiptConfirmation($message);
+        $page = $this->notion->findOrderByDate($receipt['date']);
+        if ($page === null || empty($page['id'])) {
+            throw new RuntimeException("更新対象の日付レコードがありません: date={$receipt['date']}");
+        }
+        if ($this->selectName($page, 'お店') !== self::KORORI_SHOP
+            || preg_match('/(?:^|、)注文番号: (M\d{6}-\d+)(?=、|$)/u', $this->richTextValue($page, '備考'), $orderNo) !== 1
+            || $orderNo[1] !== $receipt['order_no']) {
+            throw new RuntimeException("一致するおむすび屋KORORIの注文がありません: date={$receipt['date']}, order_no={$receipt['order_no']}");
+        }
+
+        $url = $this->gmail->messageUrl($messageId);
+        $status = $this->selectName($page, '状況');
+        if ($status === '受付済' && $this->urlValue($page, '受付確認メール') === $url) {
+            $this->logger->info(self::KORORI_SHOP . "支払い確認は既に処理済みのためスキップ: date={$receipt['date']}");
+            return 'skipped';
+        }
+        if ($status !== '注文済') {
+            throw new RuntimeException("注文済ではないため受付済に更新できません: date={$receipt['date']}, status={$status}");
+        }
+
+        $this->notion->updateOrder((string) $page['id'], [
+            '状況' => ['select' => ['name' => '受付済']],
+            '受付確認メール' => ['url' => $url],
+        ]);
+        $this->logger->info(self::KORORI_SHOP . "支払い確認メール処理成功: date={$receipt['date']}, order_no={$receipt['order_no']}, message_id={$messageId}");
 
         return 'success';
     }

@@ -205,7 +205,7 @@ function renderSettings(array $settingGroups, array $values, string $csrf, ?stri
         echo '<section class="settings-group">';
         echo '<h2>' . h($group) . '</h2>';
         echo $group === 'おむすび屋KORORI'
-            ? '<p>注文メールで注文内容を登録し、注文済に更新します。</p>'
+            ? '<p>注文メールで注文内容を登録し、注文済に更新します。お支払い確認メールで、該当する注文を受付済に更新します。</p>'
             : '<p>このメール1通で注文内容を登録し、受付済に更新します。</p>';
         foreach ($settings as $key => $label) {
             $value = $values[$key] ?? '';

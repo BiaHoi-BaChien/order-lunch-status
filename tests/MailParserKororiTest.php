@@ -21,6 +21,7 @@ $body = <<<TEXT
 
 入金確認後に確認メールをお送りします。
 TEXT;
+$body = str_replace("\r\n", "\n", $body);
 $html = <<<HTML
 <!DOCTYPE html><html><body>
 <h1>ご注文・お支払いのご案内</h1>
