@@ -254,6 +254,42 @@ final class MailParser
         return $order;
     }
 
+    /**
+     * @return array{date:string,order_no:string,amount:string}
+     */
+    public function parseKororiReceiptConfirmation(array $message): array
+    {
+        $text = mb_convert_kana(str_replace("\u{00A0}", ' ', $this->extractText($message)), 'n', 'UTF-8');
+        $count = preg_match_all(
+            '/^ *お支払いを確認いたしました。 *\n+ *注文番号[:：] *(M\d{6}-\d+) *\n+ *お渡し希望日[:：] *(\d{1,2}月\d{1,2}日(?:[（(][月火水木金土日][）)])?) *\n+ *お支払い金額[:：] *((?:\d{1,3}(?:,\d{3})+|\d+) *VND) *$/mu',
+            $text,
+            $summaries,
+            PREG_SET_ORDER
+        );
+        if ($count === false || $count === 0
+            || preg_match_all('/^ *注文番号[:：]/mu', $text) !== $count
+            || preg_match_all('/^ *お渡し希望日[:：]/mu', $text) !== $count
+            || preg_match_all('/^ *お支払い金額[:：]/mu', $text) !== $count) {
+            throw new RuntimeException('おむすび屋KORORIの支払い確認内容を抽出できません');
+        }
+
+        $receivedAt = $this->receivedAt($message);
+        $receipt = null;
+        foreach ($summaries as $summary) {
+            $parsed = [
+                'date' => $this->parseJapaneseDate($summary[2], $receivedAt),
+                'order_no' => $summary[1],
+                'amount' => ltrim(str_replace([',', ' ', 'VND'], '', $summary[3]), '0') ?: '0',
+            ];
+            if ($receipt !== null && $receipt !== $parsed) {
+                throw new RuntimeException('おむすび屋KORORIの支払い確認内容が複数あります');
+            }
+            $receipt = $parsed;
+        }
+
+        return $receipt;
+    }
+
     public function extractText(array $message): string
     {
         $payload = $message['payload'] ?? null;
