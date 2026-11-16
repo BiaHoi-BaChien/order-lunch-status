@@ -22,9 +22,39 @@ $initial = [
     'MAIL_MATSUYA_ORDER_FROM' => 'first@example.com｜second@example.com',
     'MAIL_RAMEN_KIMURA_ORDER_FROM' => 'kimura-orders@example.com',
     'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => '【お弁当注文確認】',
+    'MAIL_KORORI_ORDER_FROM' => 'korori-orders@example.com',
+    'MAIL_KORORI_ORDER_SUBJECT' => 'おむすびランチ ご注文・お支払いのご案内',
 ];
 
 try {
+    // 更新前の画面から保存しても、未送信のKORORI設定は既定値・既存値を保持する。
+    $legacySettings = $initial;
+    unset($legacySettings['MAIL_KORORI_ORDER_FROM'], $legacySettings['MAIL_KORORI_ORDER_SUBJECT']);
+    EnvFileEditor::updateValues($envPath, $legacySettings);
+    $legacyPost = [
+        'action' => 'save',
+        'csrf' => 'test-csrf',
+        'MAIL_MATSUYA_ORDER_FROM' => ['updated-matsuya@example.com'],
+        'MAIL_MATSUYA_ORDER_SUBJECT' => '変更後の松屋件名',
+        'MAIL_RAMEN_KIMURA_ORDER_FROM' => ['updated-kimura@example.com'],
+        'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => '変更後のKIMURA件名',
+    ];
+    foreach ([[], [
+        'MAIL_KORORI_ORDER_FROM' => 'retained-korori@example.com',
+        'MAIL_KORORI_ORDER_SUBJECT' => 'KORORI独自件名',
+    ]] as $kororiSettings) {
+        EnvFileEditor::updateValues($envPath, $kororiSettings);
+        $html = renderPage($directory, $legacyPost);
+        assertContains('.env を更新しました。', $html);
+        $saved = EnvFileEditor::readValues($envPath);
+        assertSame('updated-matsuya@example.com', $saved['MAIL_MATSUYA_ORDER_FROM']);
+        assertSame('変更後のKIMURA件名', $saved['MAIL_RAMEN_KIMURA_ORDER_SUBJECT']);
+        assertSame($kororiSettings['MAIL_KORORI_ORDER_FROM'] ?? null, $saved['MAIL_KORORI_ORDER_FROM'] ?? null);
+        assertSame($kororiSettings['MAIL_KORORI_ORDER_SUBJECT'] ?? null, $saved['MAIL_KORORI_ORDER_SUBJECT'] ?? null);
+        assertContains('name="MAIL_KORORI_ORDER_FROM[]" value="' . ($kororiSettings['MAIL_KORORI_ORDER_FROM'] ?? 'createone.vn@gmail.com') . '"', $html);
+        assertContains('name="MAIL_KORORI_ORDER_SUBJECT" value="' . ($kororiSettings['MAIL_KORORI_ORDER_SUBJECT'] ?? 'おむすびランチ ご注文・お支払いのご案内') . '"', $html);
+    }
+
     EnvFileEditor::updateValues($envPath, $initial);
     $html = renderPage($directory);
     assertContains('name="MAIL_MATSUYA_ORDER_FROM[]" value="first@example.com"', $html);
@@ -33,7 +63,10 @@ try {
     assertContains('name="MAIL_RAMEN_KIMURA_ORDER_SUBJECT" value="ご注文を承りました"', $html);
     assertSame(false, str_contains($html, 'MAIL_RAMEN_KIMURA_RECEIPT_FROM'));
     assertSame(false, str_contains($html, 'MAIL_RAMEN_KIMURA_RECEIPT_SUBJECT'));
-    assertSame(2, substr_count($html, 'class="add-email"'));
+    assertContains('name="MAIL_KORORI_ORDER_FROM[]" value="korori-orders@example.com"', $html);
+    assertContains('name="MAIL_KORORI_ORDER_SUBJECT" value="おむすびランチ ご注文・お支払いのご案内"', $html);
+    assertContains('注文メールで注文内容を登録し、注文済に更新します。', $html);
+    assertSame(3, substr_count($html, 'class="add-email"'));
     assertSame(2, substr_count($html, 'このメール1通で注文内容を登録し、受付済に更新します。'));
     assertSame(false, str_contains($html, 'MAIL_MATSUYA_RECEIPT_FROM'));
     assertSame(false, str_contains($html, 'MAIL_MATSUYA_RECEIPT_SUBJECT'));
@@ -93,6 +126,11 @@ try {
         assertContains('class="alert error"', renderPage($directory, $invalidPost));
         assertSame($savedContent, file_get_contents($envPath));
     }
+
+    $invalidPost = $post;
+    $invalidPost['MAIL_KORORI_ORDER_FROM'] = ['invalid-address'];
+    assertContains('おむすび屋KORORIの注文メールの送信元（1件目）', renderPage($directory, $invalidPost));
+    assertSame($savedContent, file_get_contents($envPath));
 
     $invalidPost = $post;
     $invalidPost['csrf'] = 'wrong-token';

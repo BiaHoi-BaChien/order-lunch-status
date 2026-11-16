@@ -60,6 +60,7 @@ try {
     $notionTicketDataSourceId = requireConfigValue($config, 'notion_ticket_data_source_id', 'NOTION_TICKET_DATA_SOURCE_ID');
     $config['matsuya_mail_order_from'] = requireConfigValue($config, 'matsuya_mail_order_from', 'MAIL_MATSUYA_ORDER_FROM');
     $config['ramen_kimura_mail_order_from'] = requireConfigValue($config, 'ramen_kimura_mail_order_from', 'MAIL_RAMEN_KIMURA_ORDER_FROM');
+    $config['korori_mail_order_from'] = requireConfigValue($config, 'korori_mail_order_from', 'MAIL_KORORI_ORDER_FROM');
 
     $gmail = new GmailClient(
         $config['gmail_user_id'],

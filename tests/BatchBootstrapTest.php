@@ -42,6 +42,7 @@ PHP);
         'NOTION_TICKET_DATA_SOURCE_ID' => 'test-tickets',
         'MAIL_MATSUYA_ORDER_FROM' => 'matsuya@example.com',
         'MAIL_RAMEN_KIMURA_ORDER_FROM' => 'kimura@example.com',
+        'MAIL_KORORI_ORDER_FROM' => 'korori@example.com',
         'RUN_WINDOW_ENABLED' => 'false',
         'SLACK_NOTIFICATION_ENABLED' => 'false',
         'LOG_OUTPUT_UNIT' => 'single',
@@ -65,6 +66,13 @@ PHP);
         assertSame(true, str_contains($output, 'BATCH_SERVICE_STARTED'), $output);
         assertSame(true, str_contains($output, '処理終了日時:'), $output);
     }
+
+    // 旧フォーム保存後もKORORIが未設定なら既定値で起動できる。
+    $legacySettings = $baseSettings;
+    unset($legacySettings['MAIL_KORORI_ORDER_FROM']);
+    [$exitCode, $output] = runBatch($fixtureDir, $legacySettings, $environment);
+    assertSame(0, $exitCode, $output);
+    assertSame(true, str_contains($output, 'BATCH_SERVICE_STARTED'), $output);
 
     // 現在も必要な設定が空の場合は、サービスを呼ぶ前に必ず停止する。
     foreach (array_keys($baseSettings) as $requiredKey) {

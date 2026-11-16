@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 $source = (string) file_get_contents(__DIR__ . '/../mail_settings.php');
 
-foreach (["'松屋' => [", "'RAMEN KIMURA' => [", "'MAIL_MATSUYA_ORDER_FROM'", "'MAIL_MATSUYA_ORDER_SUBJECT'", "'MAIL_RAMEN_KIMURA_ORDER_FROM'", "'MAIL_RAMEN_KIMURA_ORDER_SUBJECT'", 'このメール1通で注文内容を登録し、受付済に更新します。'] as $expected) {
+foreach (["'松屋' => [", "'RAMEN KIMURA' => [", "'おむすび屋KORORI' => [", "'MAIL_MATSUYA_ORDER_FROM'", "'MAIL_MATSUYA_ORDER_SUBJECT'", "'MAIL_RAMEN_KIMURA_ORDER_FROM'", "'MAIL_RAMEN_KIMURA_ORDER_SUBJECT'", "'MAIL_KORORI_ORDER_FROM'", "'MAIL_KORORI_ORDER_SUBJECT'", 'このメール1通で注文内容を登録し、受付済に更新します。', '注文メールで注文内容を登録し、注文済に更新します。'] as $expected) {
     if (!str_contains($source, $expected)) {
         throw new RuntimeException("Assertion failed: {$expected} not found");
     }

@@ -107,7 +107,7 @@ assertSame('合計金額: 80,000 VND', $properties['備考']['rich_text'][0]['te
 assertSame($kimuraUrl, $properties['注文確認メール']['url']);
 assertSame($kimuraUrl, $properties['受付確認メール']['url']);
 assertSame(['kimura' => 'processed'], $gmail->labels);
-assertSame(2, count($gmail->queries));
+assertSame(3, count($gmail->queries));
 assertSame('from:kimura@example.com subject:"ご注文を承りました" newer_than:7d -label:"processed"', $gmail->queries[1][0]);
 assertSame(0, count($notion->images));
 
@@ -208,7 +208,7 @@ assertSame('ticket-B1234', $properties['お弁当チケット']['relation'][0]['
 assertSame($matsuyaUrl, $properties['注文確認メール']['url']);
 assertSame($matsuyaUrl, $properties['受付確認メール']['url']);
 assertSame(['matsuya-order' => 'processed', 'kimura' => 'processed'], $gmail->labels);
-assertSame(2, count($gmail->queries));
+assertSame(3, count($gmail->queries));
 assertSame('from:matsuya@example.com subject:"' . $matsuyaSubject . '" newer_than:7d -label:"processed"', $gmail->queries[0][0]);
 
 // ラベルを外しても同じ松屋メールは重複更新せず、旧受付メールは処理しない。
@@ -268,14 +268,15 @@ assertSame([], $gmail->labels);
 assertSame(1, $service->run()['order_confirmation_success']);
 assertSame(1, count($notion->updates));
 
-// 上限1件でも2店舗を交互に検索し、各メールを1回だけ処理する。
+// 上限1件でも3店舗を順番に検索し、各メールを1回だけ処理する。
 [$service, $gmail, $notion] = fixture(['kimura' => $kimuraMail, 'matsuya-order' => $matsuyaOrder], budget: 1);
 assertSame(1, $service->run()['receipt_success']);
 assertSame(['kimura' => 'processed'], $gmail->labels);
 assertSame(1, count($gmail->queries));
+assertSame(0, $service->run()['order_confirmation_success']);
 assertSame(1, $service->run()['order_confirmation_success']);
 assertSame(2, count($gmail->labels));
-assertSame(2, count($gmail->queries));
+assertSame(3, count($gmail->queries));
 
 // 1件の失敗で別店舗の処理を止めない（両方向）。
 foreach ([[$matsuyaOrder, $unauthenticated], [$matsuyaUnauthenticated, $kimuraMail]] as [$matsuya, $kimura]) {
@@ -286,6 +287,96 @@ foreach ([[$matsuyaOrder, $unauthenticated], [$matsuyaUnauthenticated, $kimuraMa
     assertSame(1, count($notion->updates));
     assertSame(1, count($gmail->labels));
 }
+
+$kororiSubject = 'おむすびランチ ご注文・お支払いのご案内';
+$kororiBody = "ご注文ありがとうございます。\n注文番号：M261114-0005\nお渡し希望日：11月18日（水）\n\n・おむすび 塩 × 1個（単価：22,000 VND）\n・おかずセット × 1個（単価：50,000 VND）\n\n合計金額：72,000 VND\n入金確認後に確認メールをお送りします。";
+$kororiMail = testMessage($kororiSubject, $kororiBody, 'korori@example.com');
+$kororiMail['internalDate'] = (string) (strtotime('2026-11-14 09:05:48') * 1000);
+$kororiUrl = 'https://mail.google.com/mail/u/0/#all/korori';
+
+// KORORIは注文メールだけを処理し、受付済にはしない。
+[$service, $gmail, $notion] = fixture([
+    'korori' => $kororiMail,
+    'korori-receipt' => testMessage('KORORI ご入金を確認しました', '未対応の確認メール', 'korori@example.com'),
+]);
+$result = $service->run();
+assertSame(0, $result['errors']);
+assertSame(1, $result['order_confirmation_found']);
+assertSame(1, $result['order_confirmation_success']);
+assertSame(1, $result['order_confirmation_labeled']);
+assertSame(0, $result['receipt_found']);
+$properties = $notion->pages['2026-11-18']['properties'];
+assertSame('注文済', $properties['状況']['select']['name']);
+assertSame('おむすび屋KORORI', $properties['お店']['select']['name']);
+assertSame('おむすび 塩、おかずセット', $properties['品名']['title'][0]['text']['content']);
+assertSame('水', $properties['曜日']['select']['name']);
+assertSame('注文番号: M261114-0005、合計金額: 72,000 VND', $properties['備考']['rich_text'][0]['text']['content']);
+assertSame($kororiUrl, $properties['注文確認メール']['url']);
+assertSame(false, isset($properties['受付確認メール']));
+assertSame(false, isset($properties['お弁当チケット']));
+assertSame(['korori' => 'processed'], $gmail->labels);
+assertSame('from:korori@example.com subject:"' . $kororiSubject . '" newer_than:7d -label:"processed"', $gmail->queries[2][0]);
+
+// 同一メールの再処理はスキップし、受付済からも戻さない。
+foreach (['注文済', '受付済'] as $status) {
+    $gmail->labels = [];
+    $notion->pages['2026-11-18']['properties']['状況']['select']['name'] = $status;
+    assertSame(1, $service->run()['order_confirmation_skipped']);
+    assertSame($status, $notion->pages['2026-11-18']['properties']['状況']['select']['name']);
+    assertSame(1, count($notion->updates));
+    assertSame(1, $gmail->qrReads);
+}
+
+// QR追加後の更新失敗も、ラベルを付けずに安全に再試行する。
+[$service, $gmail, $notion] = fixture(['korori' => $kororiMail + ['qr' => ['data' => 'image', 'mime_type' => 'image/png']]]);
+$notion->failNextUpdate = true;
+assertSame(1, $service->run()['errors']);
+assertSame([], $gmail->labels);
+assertSame(1, $service->run()['order_confirmation_success']);
+assertSame(1, count($notion->images['2026-11-18']));
+assertSame('注文済', $notion->pages['2026-11-18']['properties']['状況']['select']['name']);
+
+foreach ([['松屋', '受付済', $kororiUrl], ['おむすび屋KORORI', '注文済', 'different']] as [$shop, $status, $url]) {
+    [$service, $gmail, $notion] = fixture(['korori' => $kororiMail], [
+        '2026-11-18' => orderPage('2026-11-18', $shop, $status, $url),
+    ]);
+    assertSame(1, $service->run()['errors']);
+    assertSame([], $notion->updates);
+    assertSame([], $gmail->labels);
+    assertSame(0, $gmail->qrReads);
+}
+
+$kororiUnauthenticated = $kororiMail;
+$kororiUnauthenticated['payload']['headers'][1]['value'] = 'mx.google.com; dmarc=fail header.from=example.com';
+$kororiWrongSender = $kororiMail;
+$kororiWrongSender['payload']['headers'][0]['value'] = 'attacker@example.com';
+$kororiMissingDate = $kororiMail;
+$kororiMissingDate['payload']['body']['data'] = rtrim(strtr(base64_encode(str_replace('11月18日', '11月19日', $kororiBody)), '+/', '-_'), '=');
+$kororiInvalidBody = $kororiMail;
+$kororiInvalidBody['payload']['body']['data'] = base64_encode('入金確認後に確認メールをお送りします。');
+foreach ([$kororiUnauthenticated, $kororiWrongSender, $kororiMissingDate, $kororiInvalidBody] as $invalidMail) {
+    [$service, $gmail, $notion] = fixture(['korori' => $invalidMail]);
+    assertSame(1, $service->run()['errors']);
+    assertSame([], $notion->updates);
+    assertSame([], $gmail->labels);
+    assertSame(0, $gmail->qrReads);
+}
+
+// 3店舗が混在しても、失敗した店舗以外の処理を継続する。
+[$service, $gmail, $notion] = fixture(['matsuya-order' => $matsuyaOrder, 'kimura' => $kimuraMail, 'korori' => $kororiUnauthenticated]);
+$result = $service->run();
+assertSame(1, $result['errors']);
+assertSame(2, count($notion->updates));
+assertSame(2, count($gmail->labels));
+
+// 検索上限1件でもKORORIに順番が回る。
+[$service, $gmail, $notion] = fixture(['matsuya-order' => $matsuyaOrder, 'kimura' => $kimuraMail, 'korori' => $kororiMail], budget: 1);
+assertSame(1, $service->run()['receipt_success']);
+assertSame(1, $service->run()['order_confirmation_success']);
+assertSame(['kimura' => 'processed', 'korori' => 'processed'], $gmail->labels);
+assertSame(1, $service->run()['order_confirmation_success']);
+assertSame(3, count($gmail->labels));
+assertSame(3, count($gmail->queries));
 
 echo "LunchOrderService single-mail test passed\n";
 
@@ -323,6 +414,7 @@ function fixture(array $messages, array $pages = [], int $budget = 100): array
     $notion = new NotionClient($pages + [
         '2026-09-21' => orderPage('2026-09-21'),
         '2026-09-22' => orderPage('2026-09-22'),
+        '2026-11-18' => orderPage('2026-11-18'),
     ]);
     $service = new LunchOrderService($gmail, $notion, new MailParser(), new Logger(), [
         'initial_record_days' => 0,
@@ -332,6 +424,7 @@ function fixture(array $messages, array $pages = [], int $budget = 100): array
         'gmail_processed_label_name' => 'processed',
         'matsuya_mail_order_from' => 'matsuya@example.com',
         'ramen_kimura_mail_order_from' => 'kimura@example.com',
+        'korori_mail_order_from' => 'korori@example.com',
         'ramen_kimura_mail_order_subject' => 'ご注文を承りました  ',
         'shop_name' => '松屋',
     ]);
