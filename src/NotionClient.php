@@ -238,7 +238,7 @@ final class NotionClient
                 'Accept: application/json',
                 'Notion-Version: ' . self::NOTION_VERSION,
             ],
-            CURLOPT_POSTFIELDS => ['file' => new CURLStringFile($data, $mimeType, $filename)],
+            CURLOPT_POSTFIELDS => ['file' => new CURLStringFile($data, $filename, $mimeType)],
         ]);
         if ($this->caBundlePath !== null) {
             curl_setopt($ch, CURLOPT_CAINFO, $this->caBundlePath);
