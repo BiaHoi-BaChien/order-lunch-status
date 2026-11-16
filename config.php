@@ -263,6 +263,8 @@ return [
     'matsuya_mail_order_subject' => $matsuyaMailOrderSubject,
     'ramen_kimura_mail_order_from' => $ramenKimuraMailOrderFrom,
     'ramen_kimura_mail_order_subject' => $ramenKimuraMailOrderSubject,
+    'korori_mail_order_from' => envString('MAIL_KORORI_ORDER_FROM', 'createone.vn@gmail.com'),
+    'korori_mail_order_subject' => trim(envValue('MAIL_KORORI_ORDER_SUBJECT', 'おむすびランチ ご注文・お支払いのご案内')),
     'gmail_processed_label_name' => $gmailProcessedLabelName,
     'mail_parser' => [
         'mapped_fields' => array_map(

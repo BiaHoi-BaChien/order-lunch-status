@@ -90,7 +90,7 @@ final class GmailClient
             return null;
         }
 
-        throw new RuntimeException('RAMEN KIMURAメールのQR画像を一意に特定できません');
+        throw new RuntimeException('メールのQR画像を一意に特定できません');
     }
 
     public function messageUrl(string $messageId): string

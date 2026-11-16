@@ -172,6 +172,88 @@ final class MailParser
         return $order;
     }
 
+    /**
+     * @return array{date:string,item_name:string,note:string}
+     */
+    public function parseKororiOrderConfirmation(array $message): array
+    {
+        $payload = $message['payload'] ?? null;
+        if (!is_array($payload)) {
+            throw new RuntimeException('メール本文のデコード失敗: payloadがありません');
+        }
+        $plain = [];
+        $html = [];
+        $this->collectParts($payload, $plain, $html);
+        foreach ($html as $body) {
+            // HTMLの商品表をテキスト版と同じ行形式にそろえる。
+            $body = preg_replace_callback('/<tr\b[^>]*>(.*?)<\/tr>/isu', static function (array $row): string {
+                preg_match_all('/<td\b[^>]*>(.*?)<\/td>/isu', $row[1], $cells);
+                if (count($cells[1]) === 3) {
+                    return '<div>・' . trim($cells[1][0]) . ' × ' . trim($cells[1][1]) . '（単価：' . trim($cells[1][2]) . '）</div>';
+                }
+                return str_contains(strtolower($row[1]), '<th') ? '' : $row[0];
+            }, $body) ?? $body;
+            $body = preg_replace('/<img\b[^>]*>/iu', '', $body) ?? $body;
+            $body = preg_replace('/<(br|\/p|\/div|\/tr|\/li|\/h[1-6])\b[^>]*>/iu', "\n", $body) ?? $body;
+            $plain[] = html_entity_decode(strip_tags($body), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        $text = mb_convert_kana($this->normalizeText(str_replace("\u{00A0}", ' ', implode("\n", $plain))), 'n', 'UTF-8');
+        $amountPattern = '(?:\d{1,3}(?:,\d{3})+|\d+) *VND';
+        $count = preg_match_all(
+            '/^ *注文番号[:：] *(M\d{6}-\d+) *\n *お渡し希望日[:：] *([^\n]+)\n(.*?)^ *合計金額[:：] *(' . $amountPattern . ') *$/msu',
+            $text,
+            $summaries,
+            PREG_SET_ORDER
+        );
+        if ($count === false || $count === 0
+            || preg_match_all('/^ *注文番号[:：]/mu', $text) !== $count
+            || preg_match_all('/^ *お渡し希望日[:：]/mu', $text) !== $count
+            || preg_match_all('/^ *合計金額[:：]/mu', $text) !== $count) {
+            throw new RuntimeException('おむすび屋KORORIの注文内容を抽出できません');
+        }
+
+        $receivedAt = $this->receivedAt($message);
+        $order = null;
+        $previousComparison = null;
+        foreach ($summaries as $summary) {
+            if (preg_match('/^\d{1,2}月\d{1,2}日(?:[（(][月火水木金土日][）)])?$/u', trim($summary[2])) !== 1) {
+                throw new RuntimeException('おむすび屋KORORIのお渡し希望日を抽出できません');
+            }
+            $date = $this->parseJapaneseDate($summary[2], $receivedAt);
+            $items = [];
+            $quantityNotes = [];
+            foreach (explode("\n", trim($summary[3])) as $line) {
+                $line = trim($line);
+                if ($line === '' || $line === 'ご注文内容') {
+                    continue;
+                }
+                if (preg_match('/^・ *(\S[^\n]*?) *× *([1-9]\d*)個 *[（(]単価[:：] *(' . $amountPattern . ')[）)] *$/u', $line, $item) !== 1) {
+                    throw new RuntimeException('おむすび屋KORORIの商品を抽出できません');
+                }
+                $items[] = [trim($item[1]), $item[2], ltrim(str_replace([',', ' ', 'VND'], '', $item[3]), '0') ?: '0'];
+                if ($item[2] !== '1') {
+                    $quantityNotes[] = trim($item[1]) . ' × ' . $item[2];
+                }
+            }
+            if ($items === []) {
+                throw new RuntimeException('おむすび屋KORORIの商品を抽出できません');
+            }
+            $comparison = [$summary[1], $date, $items, ltrim(str_replace([',', ' ', 'VND'], '', $summary[4]), '0') ?: '0'];
+            if ($previousComparison !== null && $previousComparison !== $comparison) {
+                throw new RuntimeException('おむすび屋KORORIの注文内容が複数あります');
+            }
+            $previousComparison = $comparison;
+            $order ??= [
+                'date' => $date,
+                'item_name' => implode('、', array_column($items, 0)),
+                'note' => '注文番号: ' . $summary[1] . '、合計金額: ' . $summary[4]
+                    . ($quantityNotes === [] ? '' : '、数量: ' . implode('、', $quantityNotes)),
+            ];
+        }
+
+        return $order;
+    }
+
     public function extractText(array $message): string
     {
         $payload = $message['payload'] ?? null;

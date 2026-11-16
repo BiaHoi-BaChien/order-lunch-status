@@ -10,9 +10,12 @@ $orderAuthentication = strpos($source, "assertAuthentic(\$message, (string) \$th
 $orderParsing = strpos($source, 'parseOrderConfirmation($message)');
 $kimuraAuthentication = strpos($source, "assertAuthentic(\$message, (string) \$this->config['ramen_kimura_mail_order_from'])");
 $kimuraParsing = strpos($source, 'parseKimuraOrderConfirmation($message)');
+$kororiAuthentication = strpos($source, "assertAuthentic(\$message, (string) \$this->config['korori_mail_order_from'])");
+$kororiParsing = strpos($source, 'parseKororiOrderConfirmation($message)');
 
 assertBefore($orderAuthentication, $orderParsing, '注文確認メール');
 assertBefore($kimuraAuthentication, $kimuraParsing, 'RAMEN KIMURA注文確認メール');
+assertBefore($kororiAuthentication, $kororiParsing, 'おむすび屋KORORI注文メール');
 
 $service = (new ReflectionClass(LunchOrderService::class))->newInstanceWithoutConstructor();
 (new ReflectionProperty(LunchOrderService::class, 'config'))->setValue($service, [

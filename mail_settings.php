@@ -19,6 +19,10 @@ $settingGroups = [
         'MAIL_RAMEN_KIMURA_ORDER_FROM' => '「ご注文を承りました」メールの送信元',
         'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => '「ご注文を承りました」メールの件名',
     ],
+    'おむすび屋KORORI' => [
+        'MAIL_KORORI_ORDER_FROM' => '注文メールの送信元',
+        'MAIL_KORORI_ORDER_SUBJECT' => '注文メールの件名',
+    ],
 ];
 
 $defaults = [
@@ -26,6 +30,8 @@ $defaults = [
     'MAIL_MATSUYA_ORDER_SUBJECT' => '【松屋フーズ】お弁当ご注文受付完了のお知らせ',
     'MAIL_RAMEN_KIMURA_ORDER_FROM' => 'tobe.kimura@gmail.com',
     'MAIL_RAMEN_KIMURA_ORDER_SUBJECT' => 'ご注文を承りました',
+    'MAIL_KORORI_ORDER_FROM' => 'createone.vn@gmail.com',
+    'MAIL_KORORI_ORDER_SUBJECT' => 'おむすびランチ ご注文・お支払いのご案内',
 ];
 
 $message = null;
@@ -102,8 +108,8 @@ try {
 
         // Keep all submitted fields visible if validation or saving fails.
         foreach ($settingGroups as $settings) {
-            foreach ($settings as $key => $_label) {
-                $input = $_POST[$key] ?? (str_ends_with($key, '_FROM') ? [] : '');
+            foreach (array_intersect_key($settings, $_POST) as $key => $_label) {
+                $input = $_POST[$key];
                 if (is_string($input) || (is_array($input) && count(array_filter($input, 'is_string')) === count($input))) {
                     $values[$key] = $input;
                 }
@@ -112,8 +118,8 @@ try {
 
         $updates = [];
         foreach ($settingGroups as $group => $settings) {
-            foreach ($settings as $key => $label) {
-                $input = $_POST[$key] ?? (str_ends_with($key, '_FROM') ? [] : '');
+            foreach (array_intersect_key($settings, $_POST) as $key => $label) {
+                $input = $_POST[$key];
                 if (str_ends_with($key, '_FROM')) {
                     if (!is_array($input)) {
                         throw new InvalidArgumentException("{$group}の{$label}を確認してください。");
@@ -198,7 +204,9 @@ function renderSettings(array $settingGroups, array $values, string $csrf, ?stri
     foreach ($settingGroups as $group => $settings) {
         echo '<section class="settings-group">';
         echo '<h2>' . h($group) . '</h2>';
-        echo '<p>このメール1通で注文内容を登録し、受付済に更新します。</p>';
+        echo $group === 'おむすび屋KORORI'
+            ? '<p>注文メールで注文内容を登録し、注文済に更新します。</p>'
+            : '<p>このメール1通で注文内容を登録し、受付済に更新します。</p>';
         foreach ($settings as $key => $label) {
             $value = $values[$key] ?? '';
             echo '<div class="setting">';
